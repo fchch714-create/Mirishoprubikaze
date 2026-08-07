@@ -1,0 +1,47 @@
+{
+  "name": "rubikshop-front",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@formatjs/intl-localematcher": "^0.5.4",
+    "@imgly/background-removal": "^1.7.0",
+    "@supabase/ssr": "^0.12.3",
+    "@supabase/supabase-js": "^2.110.8",
+    "@tailwindcss/postcss": "4.3.2",
+    "cloudinary": "^2.10.0",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^1.24.0",
+    "motion": "^12.42.2",
+    "negotiator": "^0.6.3",
+    "next": "^14.2.0",
+    "nodemailer": "^9.0.3",
+    "pg": "^8.22.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "recharts": "^3.9.2",
+    "sharp": "^0.35.3",
+    "tailwind-merge": "^3.6.0",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/negotiator": "^0.6.3",
+    "@types/node": "^20.0.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.19",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.0",
+    "postcss": "^8.4.38",
+    "tailwindcss": "4.3.2",
+    "typescript": "^5.0.0"
+  }
+}

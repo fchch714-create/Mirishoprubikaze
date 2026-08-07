@@ -1,0 +1,250 @@
+                              });
+                            }
+                          }}
+                          disabled={isOutOfStock}
+                          className={`w-full py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                            isOutOfStock
+                              ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                              : 'bg-foreground text-card hover:bg-rubik-brand hover:text-white active:scale-95'
+                          }`}
+                        >
+                          <ShoppingBag className="h-4 w-4" />
+                          <span>{isOutOfStock ? dict.product.out_of_stock : dict.product.add_to_cart}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Pagination Placeholder */}
+            {filteredProducts.length > 0 && (
+              <div className="pt-8 border-t border-border flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Səhifə 1 / 1</span>
+                <div className="flex gap-2">
+                  <button className="px-4 py-2 border border-border rounded-xl text-xs font-semibold text-muted-foreground cursor-not-allowed" disabled>Əvvəlki</button>
+                  <button className="px-4 py-2 bg-foreground text-card rounded-xl text-xs font-semibold hover:bg-foreground/90 transition-all cursor-pointer">Növbəti</button>
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
+
+        {/* SEO Category Article & Information block */}
+        <section className="bg-card border border-border rounded-3xl p-8 lg:p-12 space-y-6">
+          <h3 className="text-xl md:text-2xl font-black text-foreground">
+            {categoryTitle} Haqqında Ətraflı Məlumat
+          </h3>
+          <p className="text-muted-foreground text-xs md:text-sm leading-relaxed">
+            Hər bir sürətli həll (speedcubing) həvəskarının ehtiyac duyduğu premium modellər Rubikshop-da bir araya gəlir. GAN, MoYu və QiYi brendlərinin flaqman məhsulları maqnit gücü və sürtünmə dərəcəsinə görə xüsusi olaraq qruplaşdırılmışdır. Bu məhsulların hamısı Dünya Kub Assosiasiyasının (WCA) rəsmi tələbləri ilə tam uyğundur və rəsmi turnirlərdə istifadə edilə bilər.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div className="bg-muted p-4 rounded-xl border border-border/40">
+              <span className="block font-bold text-foreground mb-1">Maqnit Tənzimlənməsi</span>
+              <span className="text-muted-foreground leading-relaxed">Yeni nəsil flaqman kubların daxili kapsullarında yer alan maqnitlər sayəsində hər dönmə tam düzgün bucaq altında dayanır və kilidlənmələrin qarşısını alır.</span>
+            </div>
+            <div className="bg-muted p-4 rounded-xl border border-border/40">
+              <span className="block font-bold text-foreground mb-1">Düzgün Qulluq Qaydaları</span>
+              <span className="text-muted-foreground leading-relaxed">Kubun sürətini və fırlanma hissini qorumaq üçün hər 1000 həlldən bir silikon tərkibli xüsusi yağlama maddələrindən istifadə edilməlidir.</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Targeted Accordion FAQ block */}
+        <section className="space-y-6">
+          <h3 className="text-xl md:text-2xl font-black text-foreground text-center">
+            Məhsullar Haqqında Sual-Cavablar
+          </h3>
+          <div className="max-w-3xl mx-auto space-y-3">
+            {[
+              { q: 'Bizdə satılan məhsullar zəmanətlidir?', a: 'Bəli, Rubikshop-da satılan hər bir professional sürətli kub modelinə rəsmi istehsalçı və orijinallıq zəmanəti verilir.' },
+              { q: 'Sifarişdən sonra kub necə yağlanır və ayarlanır?', a: 'Sifariş qeydində kubu istədiyiniz gərginlikdə və sürətdə tələb edə bilərsiniz. Professional mütəxəssislərimiz GAN/MoYu yağları ilə kubu tam hazır edərək göndərəcək.' },
+              { q: 'Kuryerlərlə qapıda yoxlamaq olar?', a: 'Əlbəttə. Kuryer sifarişi çatdırdıqda məhsulun qutusunu açıb fırlatma tərzini və aksesuarlarını tam yoxladıqdan sonra nağd və ya terminal ilə ödəniş edə bilərsiniz.' }
+            ].map((faq, index) => (
+              <div key={index} className="bg-card border border-border rounded-xl p-4 space-y-2">
+                <span className="block font-bold text-sm md:text-base text-foreground">{faq.q}</span>
+                <span className="block text-xs md:text-sm text-muted-foreground leading-relaxed">{faq.a}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {/* Slide-up Mobile Filter Bottom Sheet */}
+      <AnimatePresence>
+        {isMobileFilterOpen && (
+          <React.Fragment>
+            <motion.div key="backdrop-filter"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileFilterOpen(false)}
+              className="fixed inset-0 bg-black z-50 lg:hidden"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 z-50 w-full max-h-[85vh] bg-card rounded-t-3xl border-t border-border shadow-[0_-10px_40px_rgba(0,0,0,0.1)] flex flex-col p-6 lg:hidden"
+            >
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-muted-foreground/20 rounded-full mt-3" />
+              
+              <div className="flex items-center justify-between border-b border-border pb-4 mt-2">
+                <h3 className="font-bold text-foreground">Filtrlər</h3>
+                <button
+                  onClick={() => setIsMobileFilterOpen(false)}
+                  className="p-1.5 bg-muted hover:bg-muted-dark rounded-full text-foreground transition-colors cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-6 space-y-6">
+                {/* Brand Filter (Mobile) */}
+                {availableBrands.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Brend</h4>
+                    <div className="space-y-2.5">
+                      {availableBrands.map(brand => (
+                        <label key={brand} className="flex items-center gap-2.5 text-sm font-medium text-foreground cursor-pointer group">
+                          <div className={`h-4.5 w-4.5 rounded border flex items-center justify-center transition-all ${
+                            selectedBrands.includes(brand)
+                              ? 'bg-rubik-brand border-rubik-brand text-white'
+                              : 'border-border group-hover:border-foreground/30 bg-muted/40'
+                          }`}>
+                            {selectedBrands.includes(brand) && <Check className="h-3.5 w-3.5" />}
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={selectedBrands.includes(brand)}
+                            onChange={() => handleBrandChange(brand)}
+                            className="sr-only"
+                          />
+                          <span>{brand}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Mechanics Filter (Mobile) */}
+                {availableMechanics.length > 0 && (
+                  <div className="space-y-3 pt-4 border-t border-border">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mexanika</h4>
+                    <div className="space-y-2.5">
+                      {availableMechanics.map(mech => (
+                        <label key={mech} className="flex items-center gap-2.5 text-sm font-medium text-foreground cursor-pointer group">
+                          <div className={`h-4.5 w-4.5 rounded border flex items-center justify-center transition-all ${
+                            selectedMechanics.includes(mech)
+                              ? 'bg-rubik-brand border-rubik-brand text-white'
+                              : 'border-border group-hover:border-foreground/30 bg-muted/40'
+                          }`}>
+                            {selectedMechanics.includes(mech) && <Check className="h-3.5 w-3.5" />}
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={selectedMechanics.includes(mech)}
+                            onChange={() => handleMechanicsChange(mech)}
+                            className="sr-only"
+                          />
+                          <span className="capitalize">{mech === 'maglev' ? 'MagLev' : mech === 'ball-core' ? 'Ball-Core' : mech === 'magnetic' ? 'Magnetic' : 'Standard'}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Price Filter (Mobile) */}
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Qiymət</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{minPrice} AZN</span>
+                      <span>{maxPrice} AZN</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="250"
+                      value={maxPrice}
+                      onChange={(e) => setMaxPrice(Number(e.target.value))}
+                      className="w-full accent-rubik-brand cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border space-y-2">
+                <button
+                  onClick={() => setIsMobileFilterOpen(false)}
+                  className="w-full py-3 bg-rubik-brand text-white font-bold rounded-xl text-sm hover:bg-rubik-brand-dark transition-colors cursor-pointer"
+                >
+                  Təsdiqlə
+                </button>
+              </div>
+            </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Slide-up Mobile Sort Bottom Sheet */}
+      <AnimatePresence>
+        {isMobileSortOpen && <motion.div
+              key="sort-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileSortOpen(false)}
+              className="fixed inset-0 bg-black z-50 lg:hidden"
+            />}
+            {isMobileSortOpen && <motion.div
+              key="sort-drawer"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 z-50 w-full bg-card rounded-t-3xl border-t border-border shadow-[0_-10px_40px_rgba(0,0,0,0.1)] flex flex-col p-6 lg:hidden"
+            >
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-muted-foreground/20 rounded-full mt-3" />
+              
+              <div className="flex items-center justify-between border-b border-border pb-4 mt-2">
+                <h3 className="font-bold text-foreground">Sıralama</h3>
+                <button
+                  onClick={() => setIsMobileSortOpen(false)}
+                  className="p-1.5 bg-muted hover:bg-muted-dark rounded-full text-foreground transition-colors cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-col py-4 gap-2">
+                {[
+                  { value: 'newest', label: 'Ən Yenilər' },
+                  { value: 'price_asc', label: 'Qiymət: Ucuzdan bahaya' },
+                  { value: 'price_desc', label: 'Qiymət: Bahadan ucuza' },
+                  { value: 'stock_high', label: 'Anbarda olanlar' }
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => {
+                      setSortOption(opt.value);
+                      setIsMobileSortOpen(false);
+                    }}
+                    className={`flex items-center justify-between p-4 rounded-xl text-left font-bold transition-all cursor-pointer ${
+                      sortOption === opt.value
+                        ? 'bg-rubik-brand/10 text-rubik-brand border border-rubik-brand/20'
+                        : 'bg-muted hover:bg-muted-dark text-foreground border border-transparent'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {sortOption === opt.value && <Check className="h-5 w-5" />}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

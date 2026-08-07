@@ -1,0 +1,6 @@
+{
+  "name": "Rubikshop.az",
+  "description": "High-performance full-stack e-commerce platform for Rubik's cubes and brain teasers in Azerbaijan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

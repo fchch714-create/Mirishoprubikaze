@@ -30,22 +30,22 @@ function dataURLtoFile(dataurl: string, filename = 'image.png'): File {
 
 /**
  * Compress an image File or Blob using HTML Canvas if it exceeds maxBytes or maxDimension.
+ * Automatically handles large photos (5MB+) by optimizing resolution and format (JPEG/WebP)
+ * to prevent 413 Payload Too Large server errors.
  */
 async function compressImageIfNeeded(
   file: File | Blob,
-  maxDimension = 2048,
-  quality = 0.88
+  maxDimension = 1920,
+  quality = 0.85
 ): Promise<File | Blob> {
-  // Only process images (skip videos / raw files / small images < 2MB)
-  if (!file.type.startsWith('image/') || file.size < 2 * 1024 * 1024) {
+  // Only process images that are larger than 1.5MB
+  if (!file.type.startsWith('image/') || file.size < 1.5 * 1024 * 1024) {
     return file;
   }
 
   return new Promise((resolve) => {
-    // 10-second safety timeout so upload never hangs
-    const timer = setTimeout(() => {
-      resolve(file);
-    }, 10000);
+    // 8-second safety timeout so upload never hangs
+    const timer = setTimeout(() => resolve(file), 8000);
 
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -53,19 +53,22 @@ async function compressImageIfNeeded(
     img.onload = () => {
       clearTimeout(timer);
       URL.revokeObjectURL(url);
+
       let { width, height } = img;
+      if (width <= 0 || height <= 0) return resolve(file);
 
-      if (width <= maxDimension && height <= maxDimension && file.size < 3 * 1024 * 1024) {
-        return resolve(file);
-      }
+      // Target max dimension based on file size
+      let targetMax = maxDimension; // 1920
+      if (file.size > 8 * 1024 * 1024) targetMax = 1400;
+      else if (file.size > 3.5 * 1024 * 1024) targetMax = 1600;
 
-      if (width > maxDimension || height > maxDimension) {
+      if (width > targetMax || height > targetMax) {
         if (width > height) {
-          height = Math.round((height * maxDimension) / width);
-          width = maxDimension;
+          height = Math.round((height * targetMax) / width);
+          width = targetMax;
         } else {
-          width = Math.round((width * maxDimension) / height);
-          height = maxDimension;
+          width = Math.round((width * targetMax) / height);
+          height = targetMax;
         }
       }
 
@@ -75,14 +78,59 @@ async function compressImageIfNeeded(
       const ctx = canvas.getContext('2d');
       if (!ctx) return resolve(file);
 
+      // Fill white background in case PNG is converted to JPEG or has no alpha
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
+
       ctx.drawImage(img, 0, 0, width, height);
 
-      // Preserve PNG transparency if mime type is image/png
-      const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      // Check if image has alpha transparency
+      let hasAlpha = false;
+      if (file.type === 'image/png') {
+        try {
+          const sampleW = Math.min(width, 100);
+          const sampleH = Math.min(height, 100);
+          const imageData = ctx.getImageData(0, 0, sampleW, sampleH).data;
+          for (let i = 3; i < imageData.length; i += 4) {
+            if (imageData[i] < 255) {
+              hasAlpha = true;
+              break;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // If no alpha or file is large (>2.5MB), use JPEG for high compression
+      const outputType = (file.type === 'image/png' && hasAlpha && file.size < 3.5 * 1024 * 1024) 
+        ? 'image/png' 
+        : 'image/jpeg';
+
       canvas.toBlob(
         (blob) => {
           if (!blob) return resolve(file);
-          const name = file instanceof File ? file.name : 'compressed.jpg';
+
+          // If PNG is still > 2.5MB (lossless PNG bloat), force JPEG conversion
+          if (outputType === 'image/png' && blob.size > 2.5 * 1024 * 1024) {
+            canvas.toBlob(
+              (jpegBlob) => {
+                if (!jpegBlob || jpegBlob.size >= file.size) return resolve(file);
+                const name = (file instanceof File ? file.name : 'compressed').replace(/\.[^/.]+$/, '') + '.jpg';
+                resolve(new File([jpegBlob], name, { type: 'image/jpeg' }));
+              },
+              'image/jpeg',
+              quality
+            );
+            return;
+          }
+
+          if (blob.size >= file.size) {
+            return resolve(file);
+          }
+
+          const ext = outputType === 'image/png' ? '.png' : '.jpg';
+          const name = (file instanceof File ? file.name : 'compressed').replace(/\.[^/.]+$/, '') + ext;
           resolve(new File([blob], name, { type: outputType }));
         },
         outputType,
@@ -96,7 +144,6 @@ async function compressImageIfNeeded(
       resolve(file);
     };
 
-    // Set image source to trigger loading
     img.src = url;
   });
 }

@@ -23,7 +23,11 @@ import {
   Wand2,
   Loader2,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  ArrowUp,
+  ArrowDown,
+  CloudUpload,
+  Star
 } from 'lucide-react';
 import Image from 'next/image';
 import { removeBackgroundClient } from '@/lib/client-remove-bg';
@@ -81,6 +85,70 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
   const [removingBg, setRemovingBg] = useState(false);
   const [removeBgError, setRemoveBgError] = useState('');
   const [removeBgSuccess, setRemoveBgSuccess] = useState('');
+
+  // Batch gallery upload state & reorder helpers
+  const [batchUploading, setBatchUploading] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const multiFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleBatchGalleryFiles = async (filesList: FileList | File[]) => {
+    const files = Array.from(filesList).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+
+    setBatchUploading(true);
+    setBatchProgress({ current: 0, total: files.length });
+
+    const newUrls: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const file = files[i];
+        const res = await uploadMediaClient(file, {
+          folder: 'rubikshop_products',
+          resourceType: 'image',
+        });
+        if (res?.url) {
+          newUrls.push(res.url);
+        }
+      } catch (err) {
+        console.error('Batch upload image error:', err);
+      } finally {
+        setBatchProgress({ current: i + 1, total: files.length });
+      }
+    }
+
+    if (newUrls.length > 0) {
+      setGalleryImages((prev) => [...prev.filter(Boolean), ...newUrls]);
+    }
+    setBatchUploading(false);
+    if (multiFileInputRef.current) {
+      multiFileInputRef.current.value = '';
+    }
+  };
+
+  const moveGalleryImage = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= galleryImages.length) return;
+
+    const updated = [...galleryImages];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    setGalleryImages(updated);
+  };
+
+  const makeMainImageFromGallery = (index: number) => {
+    const targetUrl = galleryImages[index];
+    if (!targetUrl) return;
+
+    const updatedGallery = [...galleryImages];
+    if (imageUrl) {
+      updatedGallery[index] = imageUrl;
+    } else {
+      updatedGallery.splice(index, 1);
+    }
+    setImageUrl(targetUrl);
+    setGalleryImages(updatedGallery);
+  };
 
   const handleRemoveBg = async (targetUrl: string, applyFn: (newUrl: string) => void) => {
     if (!targetUrl) {
@@ -1214,42 +1282,168 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
 
                 {/* QALEREYA ŞƏKİLLƏRİ */}
                 <div className="pt-6 border-t border-slate-800 space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                       <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider">
-                        Qalereya Şəkilləri (Cloudinary CDN)
+                        Qalereya Şəkilləri ({galleryImages.filter(Boolean).length} ədəd)
                       </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">Məhsul detalları səhifəsində mini karusel şəkilləri</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Məhsul detalları səhifəsində göstərilən əlavə karusel şəkilləri</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setGalleryImages([...galleryImages, ''])}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-500 hover:text-amber-400 font-bold text-xs rounded-xl transition-colors border border-slate-700 shrink-0"
-                    >
-                      <Plus className="w-4 h-4" /> + Əlavə Şəkil Sətiri
-                    </button>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="file"
+                        ref={multiFileInputRef}
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            handleBatchGalleryFiles(e.target.files);
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={batchUploading}
+                        onClick={() => multiFileInputRef.current?.click()}
+                        className="flex items-center gap-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md shadow-amber-500/20 shrink-0 cursor-pointer"
+                      >
+                        {batchUploading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                            <span>Yüklənir ({batchProgress.current}/{batchProgress.total})...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CloudUpload className="w-4 h-4 text-slate-950" />
+                            <span>📸 Birdəfəyə Çoxlu Şəkil Yüklə (Məs. 10 ədəd)</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setGalleryImages([...galleryImages, ''])}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors border border-slate-700 shrink-0"
+                      >
+                        <Plus className="w-4 h-4 text-amber-500" /> + Tək Sətir
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Drag and Drop Zone for multiple files */}
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        handleBatchGalleryFiles(e.dataTransfer.files);
+                      }
+                    }}
+                    onClick={() => multiFileInputRef.current?.click()}
+                    className="p-4 bg-slate-950/70 border-2 border-dashed border-amber-500/30 hover:border-amber-500/60 rounded-2xl flex flex-col items-center justify-center text-center transition-colors cursor-pointer group"
+                  >
+                    <CloudUpload className="w-7 h-7 text-amber-500/80 group-hover:scale-110 transition-transform mb-1" />
+                    <p className="text-xs font-bold text-white">
+                      Kompyuterdən 1 və ya bir neçə şəkili (məsələn 10 ədəd) bura sürüşdürüb atın və ya tıklayaraq seçin
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Seçilmiş bütün şəkillər avtomatik Cloudinary CDN-ə yüklənib ardıcıllıqla əlavə olunacaq.
+                    </p>
                   </div>
 
                   {galleryImages.length === 0 ? (
                     <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-2xl text-center text-xs text-slate-500">
-                      Əlavə qalereya şəkli yoxdur.
+                      Əlavə qalereya şəkli yoxdur. Yuxarıdakı knopka ilə 10+ şəkili eyni anda seçib yükləyə bilərsiniz.
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {galleryImages.map((imgUrl, index) => (
-                        <div key={index} className="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
-                          <MediaUploadField
-                            label={`Qalereya ${index + 1}`}
-                            value={imgUrl}
-                            onChange={(newUrl) => {
-                              const updated = [...galleryImages];
-                              updated[index] = newUrl;
-                              setGalleryImages(updated);
-                            }}
-                            accept="image"
-                            folder="rubikshop_products"
-                            placeholder="Qalereya şəkil URL-i yapışdırın və ya yükləyin"
-                          />
+                        <div key={index} className="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                          {/* Order index & Reorder arrows */}
+                          <div className="flex sm:flex-col items-center justify-between sm:justify-center gap-1 bg-slate-900 p-2 rounded-xl border border-slate-800 shrink-0">
+                            <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider px-1">
+                              #{index + 1}
+                            </span>
+                            <div className="flex sm:flex-col items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={index === 0}
+                                onClick={() => moveGalleryImage(index, 'up')}
+                                className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white rounded-lg transition-colors text-xs font-bold"
+                                title="Yuxarı / Sol tərəfə sürüşdür"
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={index === galleryImages.length - 1}
+                                onClick={() => moveGalleryImage(index, 'down')}
+                                className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white rounded-lg transition-colors text-xs font-bold"
+                                title="Aşağı / Sağ tərəfə sürüşdür"
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Image preview thumbnail if available */}
+                          {imgUrl ? (
+                            <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 shrink-0 self-center">
+                              <Image
+                                src={imgUrl}
+                                alt={`Qalereya ${index + 1}`}
+                                fill
+                                className="object-contain p-1"
+                                unoptimized
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          ) : null}
+
+                          {/* Upload Input Field */}
+                          <div className="flex-1">
+                            <MediaUploadField
+                              label={`Qalereya Şəkli #${index + 1}`}
+                              value={imgUrl}
+                              onChange={(newUrl) => {
+                                const updated = [...galleryImages];
+                                updated[index] = newUrl;
+                                setGalleryImages(updated);
+                              }}
+                              accept="image"
+                              folder="rubikshop_products"
+                              placeholder="Qalereya şəkil URL-i yapışdırın və ya yükləyin"
+                            />
+                          </div>
+
+                          {/* Action controls */}
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                            {imgUrl && (
+                              <button
+                                type="button"
+                                onClick={() => makeMainImageFromGallery(index)}
+                                className="px-2.5 py-2 bg-purple-950/60 hover:bg-purple-900/80 border border-purple-700/50 text-purple-300 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
+                                title="Bu şəkli Əsas Şəkil kimi təyin et"
+                              >
+                                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                <span className="hidden lg:inline text-[11px]">Əsas Şəkil Et</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = galleryImages.filter((_, i) => i !== index);
+                                setGalleryImages(updated);
+                              }}
+                              className="p-2.5 bg-red-950/50 hover:bg-red-900/80 border border-red-800/50 text-red-400 rounded-xl transition-colors"
+                              title="Sil"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

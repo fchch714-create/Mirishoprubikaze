@@ -42,9 +42,16 @@ async function compressImageIfNeeded(
   }
 
   return new Promise((resolve) => {
+    // 10-second safety timeout so upload never hangs
+    const timer = setTimeout(() => {
+      resolve(file);
+    }, 10000);
+
     const img = new Image();
     const url = URL.createObjectURL(file);
+
     img.onload = () => {
+      clearTimeout(timer);
       URL.revokeObjectURL(url);
       let { width, height } = img;
 
@@ -82,10 +89,15 @@ async function compressImageIfNeeded(
         quality
       );
     };
+
     img.onerror = () => {
+      clearTimeout(timer);
       URL.revokeObjectURL(url);
       resolve(file);
     };
+
+    // Set image source to trigger loading
+    img.src = url;
   });
 }
 
@@ -110,7 +122,7 @@ async function handleResponse(res: Response): Promise<UploadMediaResponse> {
   // Non-JSON response (e.g. 413 Payload Too Large or HTML/Text error page)
   const text = await res.text().catch(() => '');
   if (res.status === 413 || text.includes('Request Entity Too Large') || text.includes('Payload Too Large')) {
-    throw new Error('Fayl və ya şəkil ölçüsü çox böyükdür. Şəkil avtomatik optimallaşdırılsa da server tərəfindən həddi aşır. Lütfən daha kiçik fayl seçin.');
+    throw new Error('Fayl və ya şəkil ölçüsü çox böyükdür. Lütfən daha kiçik fayl seçin.');
   }
 
   throw new Error(text || `Server xətası baş verdi (Status: ${res.status}).`);
@@ -132,36 +144,50 @@ export async function uploadMediaClient(
     fileToUpload = dataURLtoFile(fileToUpload, 'uploaded_image.png');
   }
 
-  if (fileToUpload instanceof File || fileToUpload instanceof Blob) {
-    // Compress image if necessary
-    const processedFile = await compressImageIfNeeded(fileToUpload);
+  const controller = new AbortController();
+  const fetchTimeout = setTimeout(() => controller.abort(), 90000); // 90 second timeout
 
-    const formData = new FormData();
-    formData.append('file', processedFile, processedFile instanceof File ? processedFile.name : 'image.jpg');
-    formData.append('folder', folder);
-    formData.append('resource_type', resourceType);
+  try {
+    if (fileToUpload instanceof File || fileToUpload instanceof Blob) {
+      // Compress image if necessary (e.g. 5MB mobile photo)
+      const processedFile = await compressImageIfNeeded(fileToUpload);
 
-    const res = await fetch('/api/admin/upload', {
-      method: 'POST',
-      body: formData,
-    });
+      const formData = new FormData();
+      formData.append('file', processedFile, processedFile instanceof File ? processedFile.name : 'image.jpg');
+      formData.append('folder', folder);
+      formData.append('resource_type', resourceType);
 
-    return await handleResponse(res);
-  } else {
-    // String is an external HTTP/HTTPS URL
-    const res = await fetch('/api/admin/upload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        file: fileToUpload,
-        folder,
-        resource_type: resourceType,
-      }),
-    });
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
 
-    return await handleResponse(res);
+      return await handleResponse(res);
+    } else {
+      // String is an external HTTP/HTTPS URL
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file: fileToUpload,
+          folder,
+          resource_type: resourceType,
+        }),
+        signal: controller.signal,
+      });
+
+      return await handleResponse(res);
+    }
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('Yükləmə vaxtı bitdi (Timeout). İnternet əlaqənizi yoxlayın.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(fetchTimeout);
   }
 }
 

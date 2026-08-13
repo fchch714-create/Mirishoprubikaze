@@ -1003,22 +1003,88 @@ function ProductDetailClientContentInner({
     setActiveImage(galleryImages[nextIdx]);
   }, [activeImageIndex, galleryImages]);
 
+  const pushedModalHistoryRef = React.useRef(false);
+
+  const closeImageModalWithHistory = React.useCallback(() => {
+    if (pushedModalHistoryRef.current) {
+      pushedModalHistoryRef.current = false;
+      try {
+        window.history.back();
+      } catch {}
+    }
+    setShowImageModal(false);
+  }, []);
+
   React.useEffect(() => {
     if (!showImageModal) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    try {
+      window.history.pushState({ shopImageModalOpen: true }, '');
+      pushedModalHistoryRef.current = true;
+    } catch {
+      pushedModalHistoryRef.current = false;
+    }
+
+    const handlePopState = () => {
+      pushedModalHistoryRef.current = false;
+      setShowImageModal(false);
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') {
         handlePrevImage();
       } else if (e.key === 'ArrowRight') {
         handleNextImage();
       } else if (e.key === 'Escape') {
-        setShowImageModal(false);
+        closeImageModalWithHistory();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showImageModal, handlePrevImage, handleNextImage]);
 
-  const [touchStartX, setTouchStartX] = React.useState<number | null>(null);
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showImageModal, handlePrevImage, handleNextImage, closeImageModalWithHistory]);
+
+  const pushedVideoModalHistoryRef = React.useRef(false);
+
+  const closeVideoModalWithHistory = React.useCallback(() => {
+    if (pushedVideoModalHistoryRef.current) {
+      pushedVideoModalHistoryRef.current = false;
+      try {
+        window.history.back();
+      } catch {}
+    }
+    setShowVideoModal(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (!showVideoModal) return;
+
+    try {
+      window.history.pushState({ shopVideoModalOpen: true }, '');
+      pushedVideoModalHistoryRef.current = true;
+    } catch {
+      pushedVideoModalHistoryRef.current = false;
+    }
+
+    const handlePopState = () => {
+      pushedVideoModalHistoryRef.current = false;
+      setShowVideoModal(false);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [showVideoModal]);
 
   const handleGalleryTouchStart = (e: React.TouchEvent) => {
     if (e.touches && e.touches.length > 0) {
@@ -2587,7 +2653,7 @@ function ProductDetailClientContentInner({
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.6 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowVideoModal(false)}
+              onClick={closeVideoModalWithHistory}
               className="fixed inset-0 bg-black z-50"
             />
             <motion.div
@@ -2598,7 +2664,7 @@ function ProductDetailClientContentInner({
             >
               <div className="flex justify-between items-center border-b border-border pb-3">
                 <h3 className="font-bold text-foreground text-sm md:text-base">{locale === 'en' ? 'Product Overview Video' : locale === 'ru' ? 'Видео Обзор Товара' : 'Məhsulun Baxış Videosu'}</h3>
-                <button type="button" onClick={() => setShowVideoModal(false)} className="p-1 hover:bg-muted rounded-lg text-foreground cursor-pointer">X</button>
+                <button type="button" onClick={closeVideoModalWithHistory} className="p-1 hover:bg-muted rounded-lg text-foreground cursor-pointer">X</button>
               </div>
               <div className="relative aspect-video w-full bg-slate-950 rounded-2xl flex flex-col items-center justify-center gap-3 overflow-hidden text-center p-4 border border-border/80">
                 <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: `url(${product.image_url})` }} />
@@ -2625,12 +2691,12 @@ function ProductDetailClientContentInner({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100000] bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-6 select-none"
-            onClick={() => setShowImageModal(false)}
+            onClick={closeImageModalWithHistory}
           >
             {/* Close Button */}
             <button
               type="button"
-              onClick={() => setShowImageModal(false)}
+              onClick={closeImageModalWithHistory}
               className="absolute top-4 right-4 z-50 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-200 cursor-pointer border border-white/20 shadow-xl"
               title={locale === 'en' ? 'Close' : locale === 'ru' ? 'Закрыть' : 'Bağla'}
             >

@@ -30,16 +30,50 @@ export function ImageZoomModal({ imageUrl, title = "Şəkil Baxışı", onClose 
   const [imageMeta, setImageMeta] = useState<{ width: number; height: number } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const pushedHistoryRef = useRef<boolean>(false);
+
+  // Manual close function that cleans up history state if pushed
+  const handleManualClose = React.useCallback(() => {
+    if (pushedHistoryRef.current) {
+      pushedHistoryRef.current = false;
+      try {
+        window.history.back();
+      } catch {
+        // ignore history back errors
+      }
+    }
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
+    if (!imageUrl) return;
+
     // Reset state when imageUrl changes
     setZoom(1);
     setRotation(0);
     setPan({ x: 0, y: 0 });
     setImageMeta(null);
 
+    // Lock body scroll while modal is active
+    const originalStyle = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    // Push dummy history state so phone hardware/gesture back button closes modal instead of exiting page
+    try {
+      window.history.pushState({ imageZoomModalOpen: true }, '');
+      pushedHistoryRef.current = true;
+    } catch {
+      pushedHistoryRef.current = false;
+    }
+
+    const handlePopState = () => {
+      // User pressed phone back button/gesture
+      pushedHistoryRef.current = false;
+      onClose();
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleManualClose();
       if (e.key === '+' || e.key === '=') setZoom(z => Math.min(z + 0.25, 4));
       if (e.key === '-') setZoom(z => Math.max(z - 0.25, 0.5));
       if (e.key === '0') {
@@ -49,9 +83,15 @@ export function ImageZoomModal({ imageUrl, title = "Şəkil Baxışı", onClose 
       }
     };
 
+    window.addEventListener('popstate', handlePopState);
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [imageUrl, onClose]);
+
+    return () => {
+      document.body.style.overflow = originalStyle;
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [imageUrl, onClose, handleManualClose]);
 
   if (!imageUrl) return null;
 
@@ -185,7 +225,7 @@ export function ImageZoomModal({ imageUrl, title = "Şəkil Baxışı", onClose 
 
           {/* Close button */}
           <button
-            onClick={onClose}
+            onClick={handleManualClose}
             className="p-2 bg-red-950/80 hover:bg-red-900 border border-red-800/80 text-red-300 rounded-xl transition-colors ml-1"
             title="Bağla (Esc)"
           >
@@ -197,6 +237,11 @@ export function ImageZoomModal({ imageUrl, title = "Şəkil Baxışı", onClose 
       {/* Main Image Viewer Stage */}
       <div 
         ref={containerRef}
+        onClick={(e) => {
+          if (e.target === containerRef.current) {
+            handleManualClose();
+          }
+        }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

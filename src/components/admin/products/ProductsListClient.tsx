@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
   Plus, Search, Filter, Edit3, Trash2, Download, Upload, Copy,
-  CheckSquare, Square, Tag, Star, EyeOff, X, Save
+  CheckSquare, Square, Tag, Star, EyeOff, X, Save, ZoomIn
 } from 'lucide-react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase/client';
 import { bulkImportProductsAction, BulkImportResult } from '@/lib/actions/admin';
 import { sanitizeImageUrl } from '@/lib/image';
+import { ImageZoomModal } from '@/components/admin/ImageZoomModal';
 
 // Helper to convert AZ/RU characters and spaces into clean URL slugs
 const slugify = (text: string) => {
@@ -68,6 +69,8 @@ export default function ProductsListClient() {
   // Deletion confirmation state
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null);
+  const [zoomTitle, setZoomTitle] = useState<string>('Məhsul Şəkli');
 
   const handleDeleteClick = (id: string) => {
     setProductToDelete(id);
@@ -317,8 +320,21 @@ export default function ProductsListClient() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
-                      <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-slate-800 border border-slate-700">
-                        <Image src={sanitizeImageUrl(product.image_url, product.id)} alt={product.title_az || 'Product'} fill className="object-cover" />
+                      <div 
+                        onClick={() => {
+                          const url = sanitizeImageUrl(product.image_url, product.id);
+                          if (url) {
+                            setZoomUrl(url);
+                            setZoomTitle(product.title_az || 'Məhsul Şəkli');
+                          }
+                        }}
+                        className="relative w-12 h-12 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 cursor-pointer group shrink-0"
+                        title="Şəkli böyüdüb baxmaq üçün vurun 🔍"
+                      >
+                        <Image src={sanitizeImageUrl(product.image_url, product.id)} alt={product.title_az || 'Product'} fill className="object-cover group-hover:scale-110 transition-transform" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <ZoomIn className="w-4 h-4 text-amber-400" />
+                        </div>
                       </div>
                       <div>
                         <div className="font-bold text-white flex items-center gap-2">
@@ -579,6 +595,12 @@ export default function ProductsListClient() {
           </div>
         </div>
       )}
+      {/* IMAGE ZOOM FULLSCREEN MODAL */}
+      <ImageZoomModal 
+        imageUrl={zoomUrl} 
+        title={zoomTitle} 
+        onClose={() => setZoomUrl(null)} 
+      />
     </div>
   );
 }

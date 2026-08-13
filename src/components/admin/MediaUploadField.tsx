@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { Upload, Image as ImageIcon, Video, Loader2, CheckCircle2, AlertCircle, Trash2, CloudUpload, Link as LinkIcon } from 'lucide-react';
+import { Upload, Image as ImageIcon, Video, Loader2, CheckCircle2, AlertCircle, Trash2, CloudUpload, Link as LinkIcon, ZoomIn, Eye } from 'lucide-react';
 import { uploadMediaClient } from '@/lib/client-upload';
+import { ImageZoomModal } from './ImageZoomModal';
 
 interface MediaUploadFieldProps {
   label?: string;
@@ -26,6 +27,7 @@ export function MediaUploadField({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const safeValue = value || '';
@@ -106,6 +108,44 @@ export function MediaUploadField({
       )}
 
       <div className="space-y-3">
+        {/* Preview Thumbnail if image value exists */}
+        {safeValue && accept !== 'video' && (
+          <div className="flex items-center gap-3 p-2 bg-slate-950/80 border border-slate-800 rounded-2xl">
+            <div 
+              onClick={() => setZoomUrl(safeValue)}
+              className="relative w-14 h-14 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 shrink-0 cursor-pointer group"
+              title="Şəkli böyütmək üçün klikləyin 🔍"
+            >
+              {/* eslint-disable-next-html-element-suppression */}
+              <img
+                src={safeValue}
+                alt="Media preview"
+                className="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform"
+                onError={(e) => { (e.currentTarget as any).style.display = 'none'; }}
+              />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                <ZoomIn className="w-5 h-5 text-amber-400 drop-shadow" />
+              </div>
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-slate-200 truncate font-mono">
+                {safeValue.split('/').pop() || 'Media Faylı'}
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setZoomUrl(safeValue)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>🔍 Böyüdüb Bax</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* URL Input & Buttons */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <div className="relative flex-1">
@@ -206,6 +246,12 @@ export function MediaUploadField({
           </div>
         )}
       </div>
+
+      <ImageZoomModal 
+        imageUrl={zoomUrl} 
+        title={label || "Şəkil Baxışı"} 
+        onClose={() => setZoomUrl(null)} 
+      />
     </div>
   );
 }

@@ -27,12 +27,19 @@ import {
   ArrowUp,
   ArrowDown,
   CloudUpload,
-  Star
+  Star,
+  GripVertical,
+  ZoomIn,
+  LayoutGrid,
+  List,
+  ChevronsUp,
+  ChevronsDown
 } from 'lucide-react';
 import Image from 'next/image';
 import { removeBackgroundClient } from '@/lib/client-remove-bg';
 import { uploadMediaClient } from '@/lib/client-upload';
 import { MediaUploadField } from '@/components/admin/MediaUploadField';
+import { ImageZoomModal } from '@/components/admin/ImageZoomModal';
 import { 
   createProduct, 
   updateProduct, 
@@ -86,9 +93,14 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
   const [removeBgError, setRemoveBgError] = useState('');
   const [removeBgSuccess, setRemoveBgSuccess] = useState('');
 
-  // Batch gallery upload state & reorder helpers
+  // Batch gallery upload state, zoom modal & drag-reorder helpers
   const [batchUploading, setBatchUploading] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null);
+  const [zoomTitle, setZoomTitle] = useState<string>('Şəkil Baxışı');
+  const [draggedGalleryIndex, setDraggedGalleryIndex] = useState<number | null>(null);
+  const [dragOverGalleryIndex, setDragOverGalleryIndex] = useState<number | null>(null);
+  const [galleryViewMode, setGalleryViewMode] = useState<'list' | 'grid'>('grid');
   const multiFileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleBatchGalleryFiles = async (filesList: FileList | File[]) => {
@@ -125,15 +137,32 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
     }
   };
 
+  const reorderGallery = (fromIndex: number, toIndex: number) => {
+    if (fromIndex < 0 || fromIndex >= galleryImages.length) return;
+    if (toIndex < 0 || toIndex >= galleryImages.length) return;
+    if (fromIndex === toIndex) return;
+
+    const updated = [...galleryImages];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, moved);
+    setGalleryImages(updated);
+  };
+
+  const moveGalleryImageToPosition = (fromIndex: number, newPos1Based: number) => {
+    const targetIndex = newPos1Based - 1;
+    if (targetIndex < 0 || targetIndex >= galleryImages.length) return;
+    reorderGallery(fromIndex, targetIndex);
+  };
+
+  const moveGalleryImageToExtremities = (fromIndex: number, position: 'top' | 'bottom') => {
+    const targetIndex = position === 'top' ? 0 : galleryImages.length - 1;
+    reorderGallery(fromIndex, targetIndex);
+  };
+
   const moveGalleryImage = (index: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= galleryImages.length) return;
-
-    const updated = [...galleryImages];
-    const temp = updated[index];
-    updated[index] = updated[targetIndex];
-    updated[targetIndex] = temp;
-    setGalleryImages(updated);
+    reorderGallery(index, targetIndex);
   };
 
   const makeMainImageFromGallery = (index: number) => {
@@ -1233,33 +1262,55 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
 
                   {imageUrl ? (
                     <div className="mt-4">
-                      <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Önizləmə</p>
-                      <div className="relative w-48 aspect-square rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 group">
+                      <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Əsas Şəkil Önizləməsi (Böyütmək üçün üzərinə vurun)</p>
+                      <div 
+                        onClick={() => { setZoomUrl(imageUrl); setZoomTitle("Əsas Məhsul Şəkli"); }}
+                        className="relative w-48 aspect-square rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 group cursor-pointer hover:border-amber-500/80 transition-all shadow-xl"
+                        title="Şəkli tam ekranda böyüdüb baxmaq üçün klikləyin 🔍"
+                      >
                         <Image 
                           src={imageUrl} 
                           alt="Önizləmə" 
                           fill 
-                          className="object-contain p-2" 
+                          className="object-contain p-2 group-hover:scale-105 transition-transform" 
                           unoptimized={true}
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute top-2 left-2 px-2 py-1 bg-amber-500 text-slate-950 text-[10px] font-black rounded uppercase tracking-wider shadow-md">
+                        <div className="absolute top-2 left-2 px-2 py-1 bg-amber-500 text-slate-950 text-[10px] font-black rounded uppercase tracking-wider shadow-md z-10">
                           Əsas Şəkil
                         </div>
                         <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                           <button
                             type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setZoomUrl(imageUrl);
+                              setZoomTitle("Əsas Məhsul Şəkli");
+                            }}
+                            className="p-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg transition-colors shadow-md font-bold"
+                            title="Böyüdüb Bax 🔍"
+                          >
+                            <ZoomIn className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
                             disabled={removingBg}
-                            onClick={() => handleRemoveBg(imageUrl, (newUrl) => setImageUrl(newUrl))}
-                            className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveBg(imageUrl, (newUrl) => setImageUrl(newUrl));
+                            }}
+                            className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors shadow-md"
                             title="Fonu Sil (@imgly AI)"
                           >
                             <Wand2 className="w-4 h-4" />
                           </button>
                           <button 
                             type="button"
-                            onClick={() => setImageUrl('')}
-                            className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setImageUrl('');
+                            }}
+                            className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-md"
                             title="Şəkli Sil"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1282,15 +1333,48 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
 
                 {/* QALEREYA ŞƏKİLLƏRİ */}
                 <div className="pt-6 border-t border-slate-800 space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                     <div>
-                      <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider">
-                        Qalereya Şəkilləri ({galleryImages.filter(Boolean).length} ədəd)
+                      <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                        <span>Qalereya Şəkilləri ({galleryImages.filter(Boolean).length} ədəd)</span>
+                        <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full text-[10px] font-mono">
+                          Sürüşdür & Bırak / Drag & Drop
+                        </span>
                       </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">Məhsul detalları səhifəsində göstərilən əlavə karusel şəkilləri</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Məhsul detalları səhifəsində karusel kimi göstərilən şəkillər</p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                      {/* Grid / List view mode switcher */}
+                      <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setGalleryViewMode('grid')}
+                          className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                            galleryViewMode === 'grid'
+                              ? 'bg-amber-500 text-slate-950 shadow-md'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                          title="Şəbəkə / Grid Görünüşü"
+                        >
+                          <LayoutGrid className="w-4 h-4" />
+                          <span className="text-[11px] hidden sm:inline">Grid</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGalleryViewMode('list')}
+                          className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                            galleryViewMode === 'list'
+                              ? 'bg-amber-500 text-slate-950 shadow-md'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                          title="Siyahı Görünüşü"
+                        >
+                          <List className="w-4 h-4" />
+                          <span className="text-[11px] hidden sm:inline">Siyahı</span>
+                        </button>
+                      </div>
+
                       <input
                         type="file"
                         ref={multiFileInputRef}
@@ -1327,9 +1411,32 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
                         onClick={() => setGalleryImages([...galleryImages, ''])}
                         className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors border border-slate-700 shrink-0"
                       >
-                        <Plus className="w-4 h-4 text-amber-500" /> + Tək Sətir
+                        <Plus className="w-4 h-4 text-amber-500" /> + Sətir
                       </button>
+
+                      {galleryImages.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm('Bütün qalereya şəkillərini silmək istədiyinizə əminsiniz?')) {
+                              setGalleryImages([]);
+                            }
+                          }}
+                          className="p-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-red-400 rounded-xl transition-colors shrink-0"
+                          title="Bütün Qalereya Şəkillərini Təmizlə"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
+                  </div>
+
+                  {/* Guide tip banner */}
+                  <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-center gap-2.5 text-xs text-amber-200/90">
+                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                    <p className="leading-relaxed">
+                      <strong>İstifadə İpucu:</strong> Şəkillərin sırasını dəyişmək üçün tutacaqdan (<GripVertical className="w-3.5 h-3.5 inline text-amber-400" />) tutub sürükləyin (Drag & Drop) və ya sıra nömrəsini seçin. Şəkli tam ölçüdə böyüdüb baxmaq üçün şəkilin və ya <ZoomIn className="w-3.5 h-3.5 inline text-amber-400" /> düyməsinə klikləyin.
+                    </p>
                   </div>
 
                   {/* Drag and Drop Zone for multiple files */}
@@ -1354,98 +1461,343 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
                   </div>
 
                   {galleryImages.length === 0 ? (
-                    <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-2xl text-center text-xs text-slate-500">
+                    <div className="p-6 bg-slate-950/50 border border-slate-800 rounded-2xl text-center text-xs text-slate-500">
                       Əlavə qalereya şəkli yoxdur. Yuxarıdakı knopka ilə 10+ şəkili eyni anda seçib yükləyə bilərsiniz.
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {galleryImages.map((imgUrl, index) => (
-                        <div key={index} className="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                          {/* Order index & Reorder arrows */}
-                          <div className="flex sm:flex-col items-center justify-between sm:justify-center gap-1 bg-slate-900 p-2 rounded-xl border border-slate-800 shrink-0">
-                            <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider px-1">
-                              #{index + 1}
-                            </span>
-                            <div className="flex sm:flex-col items-center gap-1">
-                              <button
-                                type="button"
-                                disabled={index === 0}
-                                onClick={() => moveGalleryImage(index, 'up')}
-                                className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white rounded-lg transition-colors text-xs font-bold"
-                                title="Yuxarı / Sol tərəfə sürüşdür"
+                  ) : galleryViewMode === 'grid' ? (
+                    /* GRID VIEW MODE */
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {galleryImages.map((imgUrl, index) => {
+                        const isDragOver = dragOverGalleryIndex === index;
+                        const isDraggingThis = draggedGalleryIndex === index;
+
+                        return (
+                          <div
+                            key={index}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', String(index));
+                              setDraggedGalleryIndex(index);
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = 'move';
+                              setDragOverGalleryIndex(index);
+                            }}
+                            onDragLeave={() => setDragOverGalleryIndex(null)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const fromIdx = draggedGalleryIndex ?? Number(e.dataTransfer.getData('text/plain'));
+                              reorderGallery(fromIdx, index);
+                              setDraggedGalleryIndex(null);
+                              setDragOverGalleryIndex(null);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedGalleryIndex(null);
+                              setDragOverGalleryIndex(null);
+                            }}
+                            className={`relative bg-slate-950 border rounded-2xl p-3 flex flex-col justify-between transition-all duration-150 ${
+                              isDragOver 
+                                ? 'border-2 border-amber-500 bg-amber-500/10 scale-[1.02] shadow-2xl ring-2 ring-amber-500/50 z-20' 
+                                : isDraggingThis 
+                                ? 'opacity-40 border-dashed border-amber-500' 
+                                : 'border-slate-800 hover:border-slate-700 shadow-md'
+                            }`}
+                          >
+                            {/* Card Top Control Bar */}
+                            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/80">
+                              {/* Drag Grip Handle */}
+                              <div 
+                                className="flex items-center gap-1.5 cursor-grab active:cursor-grabbing text-slate-400 hover:text-amber-400 p-1 bg-slate-900 rounded-lg border border-slate-800 hover:border-amber-500/40 transition-colors"
+                                title="Yerini dəyişmək üçün sürüşdürün (Drag & Drop)"
                               >
-                                <ArrowUp className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={index === galleryImages.length - 1}
-                                onClick={() => moveGalleryImage(index, 'down')}
-                                className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white rounded-lg transition-colors text-xs font-bold"
-                                title="Aşağı / Sağ tərəfə sürüşdür"
-                              >
-                                <ArrowDown className="w-3.5 h-3.5" />
-                              </button>
+                                <GripVertical className="w-4 h-4 text-amber-500 shrink-0" />
+                                <span className="text-[11px] font-black font-mono text-amber-400">#{index + 1}</span>
+                              </div>
+
+                              {/* Position Jumper Selector & Arrows */}
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={index === 0}
+                                  onClick={() => moveGalleryImageToExtremities(index, 'top')}
+                                  className="p-1 text-slate-400 hover:text-white disabled:opacity-20 hover:bg-slate-800 rounded transition-colors"
+                                  title="Ən Yuxarı (#1) Göndər"
+                                >
+                                  <ChevronsUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={index === 0}
+                                  onClick={() => moveGalleryImage(index, 'up')}
+                                  className="p-1 text-slate-400 hover:text-white disabled:opacity-20 hover:bg-slate-800 rounded transition-colors"
+                                  title="1 Sətir Yuxarı"
+                                >
+                                  <ArrowUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={index === galleryImages.length - 1}
+                                  onClick={() => moveGalleryImage(index, 'down')}
+                                  className="p-1 text-slate-400 hover:text-white disabled:opacity-20 hover:bg-slate-800 rounded transition-colors"
+                                  title="1 Sətir Aşağı"
+                                >
+                                  <ArrowDown className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={index === galleryImages.length - 1}
+                                  onClick={() => moveGalleryImageToExtremities(index, 'bottom')}
+                                  className="p-1 text-slate-400 hover:text-white disabled:opacity-20 hover:bg-slate-800 rounded transition-colors"
+                                  title="Ən Aşağı Göndər"
+                                >
+                                  <ChevronsDown className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Direct position dropdown */}
+                                <select
+                                  value={index + 1}
+                                  onChange={(e) => moveGalleryImageToPosition(index, Number(e.target.value))}
+                                  className="bg-slate-900 border border-slate-800 text-amber-400 font-mono text-[10px] font-black rounded p-1 focus:outline-none focus:border-amber-500 cursor-pointer"
+                                  title="Birbaşa Sətir Nömrəsinə Keçir"
+                                >
+                                  {galleryImages.map((_, i) => (
+                                    <option key={i} value={i + 1}>#{i + 1}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* Image Visual Preview Box */}
+                            <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-slate-900 border border-slate-800 my-2 group">
+                              {imgUrl ? (
+                                <>
+                                  <Image
+                                    src={imgUrl}
+                                    alt={`Qalereya ${index + 1}`}
+                                    fill
+                                    className="object-contain p-2 group-hover:scale-105 transition-transform cursor-pointer"
+                                    unoptimized
+                                    referrerPolicy="no-referrer"
+                                    onClick={() => {
+                                      setZoomUrl(imgUrl);
+                                      setZoomTitle(`Qalereya Şəkli #${index + 1}`);
+                                    }}
+                                  />
+                                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setZoomUrl(imgUrl);
+                                        setZoomTitle(`Qalereya Şəkli #${index + 1}`);
+                                      }}
+                                      className="p-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-all shadow-lg pointer-events-auto"
+                                      title="Böyüdüb Bax 🔍"
+                                    >
+                                      <ZoomIn className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                                  <ImageIcon className="w-8 h-8 text-slate-600 mb-1" />
+                                  <span className="text-[10px] text-slate-500">URL Yoxdur</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Input Field for URL */}
+                            <div className="mt-2 space-y-2">
+                              <MediaUploadField
+                                label=""
+                                value={imgUrl}
+                                onChange={(newUrl) => {
+                                  const updated = [...galleryImages];
+                                  updated[index] = newUrl;
+                                  setGalleryImages(updated);
+                                }}
+                                accept="image"
+                                folder="rubikshop_products"
+                                placeholder="Şəkil URL-i yapışdırın"
+                              />
+
+                              {/* Card Action Buttons */}
+                              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+                                {imgUrl ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => makeMainImageFromGallery(index)}
+                                    className="flex-1 py-1.5 px-2 bg-purple-950/60 hover:bg-purple-900 border border-purple-700/50 text-purple-300 font-bold text-[11px] rounded-xl transition-colors flex items-center justify-center gap-1"
+                                    title="Bu şəkli Əsas Şəkil kimi təyin et"
+                                  >
+                                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                    <span>Əsas Şəkil Et</span>
+                                  </button>
+                                ) : (
+                                  <div className="flex-1" />
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = galleryImages.filter((_, i) => i !== index);
+                                    setGalleryImages(updated);
+                                  }}
+                                  className="p-2 bg-red-950/40 hover:bg-red-900/80 border border-red-800/50 text-red-400 rounded-xl transition-colors"
+                                  title="Sətri Sil"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* LIST VIEW MODE */
+                    <div className="space-y-3">
+                      {galleryImages.map((imgUrl, index) => {
+                        const isDragOver = dragOverGalleryIndex === index;
+                        const isDraggingThis = draggedGalleryIndex === index;
 
-                          {/* Image preview thumbnail if available */}
-                          {imgUrl ? (
-                            <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 shrink-0 self-center">
-                              <Image
-                                src={imgUrl}
-                                alt={`Qalereya ${index + 1}`}
-                                fill
-                                className="object-contain p-1"
-                                unoptimized
-                                referrerPolicy="no-referrer"
+                        return (
+                          <div
+                            key={index}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', String(index));
+                              setDraggedGalleryIndex(index);
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = 'move';
+                              setDragOverGalleryIndex(index);
+                            }}
+                            onDragLeave={() => setDragOverGalleryIndex(null)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const fromIdx = draggedGalleryIndex ?? Number(e.dataTransfer.getData('text/plain'));
+                              reorderGallery(fromIdx, index);
+                              setDraggedGalleryIndex(null);
+                              setDragOverGalleryIndex(null);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedGalleryIndex(null);
+                              setDragOverGalleryIndex(null);
+                            }}
+                            className={`p-3 bg-slate-950 border rounded-2xl flex flex-col sm:flex-row items-stretch sm:items-center gap-3 transition-all duration-150 ${
+                              isDragOver 
+                                ? 'border-2 border-amber-500 bg-amber-500/10 scale-[1.01] shadow-2xl ring-2 ring-amber-500/50 z-20' 
+                                : isDraggingThis 
+                                ? 'opacity-40 border-dashed border-amber-500' 
+                                : 'border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            {/* Grip & Order Handle */}
+                            <div className="flex sm:flex-col items-center justify-between sm:justify-center gap-1.5 bg-slate-900 p-2 rounded-xl border border-slate-800 shrink-0">
+                              <div 
+                                className="cursor-grab active:cursor-grabbing p-1 hover:text-amber-400 text-slate-500 transition-colors"
+                                title="Sürüşdürüb sıranı dəyişin (Drag & Drop)"
+                              >
+                                <GripVertical className="w-4 h-4 text-amber-500" />
+                              </div>
+
+                              <span className="text-[10px] font-black text-amber-500 font-mono">
+                                #{index + 1}
+                              </span>
+
+                              <div className="flex sm:flex-col items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={index === 0}
+                                  onClick={() => moveGalleryImage(index, 'up')}
+                                  className="p-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white rounded transition-colors"
+                                  title="Yuxarı"
+                                >
+                                  <ArrowUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={index === galleryImages.length - 1}
+                                  onClick={() => moveGalleryImage(index, 'down')}
+                                  className="p-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white rounded transition-colors"
+                                  title="Aşağı"
+                                >
+                                  <ArrowDown className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Image preview thumbnail if available */}
+                            {imgUrl ? (
+                              <div 
+                                onClick={() => {
+                                  setZoomUrl(imgUrl);
+                                  setZoomTitle(`Qalereya Şəkli #${index + 1}`);
+                                }}
+                                className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 shrink-0 self-center cursor-pointer group"
+                                title="Şəkli böyüdüb baxmaq üçün klikləyin 🔍"
+                              >
+                                <Image
+                                  src={imgUrl}
+                                  alt={`Qalereya ${index + 1}`}
+                                  fill
+                                  className="object-contain p-1 group-hover:scale-105 transition-transform"
+                                  unoptimized
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                  <ZoomIn className="w-4 h-4 text-amber-400" />
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {/* Upload Input Field */}
+                            <div className="flex-1">
+                              <MediaUploadField
+                                label={`Qalereya Şəkli #${index + 1}`}
+                                value={imgUrl}
+                                onChange={(newUrl) => {
+                                  const updated = [...galleryImages];
+                                  updated[index] = newUrl;
+                                  setGalleryImages(updated);
+                                }}
+                                accept="image"
+                                folder="rubikshop_products"
+                                placeholder="Qalereya şəkil URL-i yapışdırın və ya yükləyin"
                               />
                             </div>
-                          ) : null}
 
-                          {/* Upload Input Field */}
-                          <div className="flex-1">
-                            <MediaUploadField
-                              label={`Qalereya Şəkli #${index + 1}`}
-                              value={imgUrl}
-                              onChange={(newUrl) => {
-                                const updated = [...galleryImages];
-                                updated[index] = newUrl;
-                                setGalleryImages(updated);
-                              }}
-                              accept="image"
-                              folder="rubikshop_products"
-                              placeholder="Qalereya şəkil URL-i yapışdırın və ya yükləyin"
-                            />
-                          </div>
+                            {/* Action controls */}
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                              {imgUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => makeMainImageFromGallery(index)}
+                                  className="px-2.5 py-2 bg-purple-950/60 hover:bg-purple-900/80 border border-purple-700/50 text-purple-300 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
+                                  title="Bu şəkli Əsas Şəkil kimi təyin et"
+                                >
+                                  <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                  <span className="hidden lg:inline text-[11px]">Əsas Şəkil Et</span>
+                                </button>
+                              )}
 
-                          {/* Action controls */}
-                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                            {imgUrl && (
                               <button
                                 type="button"
-                                onClick={() => makeMainImageFromGallery(index)}
-                                className="px-2.5 py-2 bg-purple-950/60 hover:bg-purple-900/80 border border-purple-700/50 text-purple-300 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
-                                title="Bu şəkli Əsas Şəkil kimi təyin et"
+                                onClick={() => {
+                                  const updated = galleryImages.filter((_, i) => i !== index);
+                                  setGalleryImages(updated);
+                                }}
+                                className="p-2.5 bg-red-950/50 hover:bg-red-900/80 border border-red-800/50 text-red-400 rounded-xl transition-colors"
+                                title="Sil"
                               >
-                                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                                <span className="hidden lg:inline text-[11px]">Əsas Şəkil Et</span>
+                                <Trash2 className="w-4 h-4" />
                               </button>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = galleryImages.filter((_, i) => i !== index);
-                                setGalleryImages(updated);
-                              }}
-                              className="p-2.5 bg-red-950/50 hover:bg-red-900/80 border border-red-800/50 text-red-400 rounded-xl transition-colors"
-                              title="Sil"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1782,6 +2134,12 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
           </div>
         </div>
       )}
+      {/* IMAGE ZOOM FULLSCREEN MODAL */}
+      <ImageZoomModal 
+        imageUrl={zoomUrl} 
+        title={zoomTitle} 
+        onClose={() => setZoomUrl(null)} 
+      />
     </div>
   );
 }

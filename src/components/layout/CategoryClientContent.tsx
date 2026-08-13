@@ -110,7 +110,7 @@ function extractProductAttributes(p: any) {
     else if (title.includes('bundle') || title.includes('set')) productType = 'Cube Bundle';
     else if (title.includes('shape mod') || title.includes('mod')) productType = 'Shape Mod';
     else if (title.includes('string')) productType = 'String Cube';
-    else productType = '3×3';
+    else productType = p.category_slug || p.category_id || p.category || '';
   } else if (productType === '3x3' || productType === '3x3-kub' || productType === '3x3-kublar') {
     productType = '3×3';
   } else if (productType === '2x2' || productType === '2x2-kub') {
@@ -221,6 +221,176 @@ function extractProductAttributes(p: any) {
   };
 }
 
+/**
+ * 100% precise category matching function across all categories and taxonomy items
+ */
+function matchesCategory(p: any, targetSlug: string, targetId: string): boolean {
+  const target = (targetSlug || targetId || '').toLowerCase().trim();
+  if (!target) return true;
+
+  const pCatRaw = (
+    p.category_slug || 
+    p.category_id || 
+    p.category || 
+    (p.categories as any)?.slug || 
+    ''
+  ).toString().toLowerCase().trim();
+
+  const title = (p.title || p.name || p.title_az || p.name_az || '').toLowerCase().trim();
+  const pType = (p.attrs?.productType || p.product_type || '').toLowerCase().trim();
+
+  const normalizeCat = (str: string): string => {
+    if (!str) return '';
+    if (['2x2', '2x2-kub', '2x2-kublar', '2x2-cubes', '2x2-cube'].includes(str)) return '2x2';
+    if (['3x3', '3x3-kub', '3x3-kublar', '3x3-cubes', '3x3-cube'].includes(str)) return '3x3';
+    if (['4x4', '4x4-kub', '4x4-kublar', '4x4-cubes', '4x4-cube'].includes(str)) return '4x4';
+    if (['5x5', '5x5-kub', '5x5-kublar', '5x5-cubes', '5x5-cube'].includes(str)) return '5x5';
+    if (['6x6', '6x6-kub', '6x6-kublar', '6x6-cubes', '6x6-cube'].includes(str)) return '6x6';
+    if (['7x7', '7x7-kub', '7x7-kublar', '7x7-cubes', '7x7-cube'].includes(str)) return '7x7';
+    if (['megaminx', 'megaminx-kub', 'megaminx-kublar'].includes(str)) return 'megaminx';
+    if (['pyraminx', 'pyraminx-kub', 'pyraminx-kublar'].includes(str)) return 'pyraminx';
+    if (['skewb', 'skewb-kub', 'skewb-kublar'].includes(str)) return 'skewb';
+    if (['square-1', 'square1', 'sq-1', 'sq1'].includes(str)) return 'square-1';
+    if (['clock'].includes(str)) return 'clock';
+    if (['fto'].includes(str)) return 'fto';
+    if (['big-cubes', 'boyuk-kublar', 'big_cubes'].includes(str)) return 'big-cubes';
+    return str;
+  };
+
+  const normCat = normalizeCat(pCatRaw);
+  const normTarget = normalizeCat(target);
+
+  // Exact match on normalized category
+  if (normCat && normCat === normTarget) return true;
+
+  const standardCategories = ['2x2', '3x3', '4x4', '5x5', '6x6', '7x7', 'megaminx', 'pyraminx', 'skewb', 'square-1', 'clock', 'fto'];
+
+  // If product belongs explicitly to another standard category, exclude it
+  if (normCat && standardCategories.includes(normCat)) {
+    if (normTarget === 'big-cubes') {
+      return ['4x4', '5x5', '6x6', '7x7'].includes(normCat);
+    }
+    if (standardCategories.includes(normTarget) && normCat !== normTarget) {
+      return false;
+    }
+  }
+
+  // Fallback title/type matching for missing or generic category slug
+  if (normTarget === '5x5') {
+    return title.includes('5x5') || title.includes('5×5') || pType === '5×5' || pType === '5x5';
+  }
+
+  if (normTarget === '2x2') {
+    return title.includes('2x2') || title.includes('2×2') || pType === '2×2' || pType === '2x2';
+  }
+
+  if (normTarget === '3x3') {
+    if (title.includes('3x3') || title.includes('3×3') || pType === '3×3' || pType === '3x3') {
+      return !title.includes('2x2') && !title.includes('4x4') && !title.includes('5x5') && !title.includes('6x6') && !title.includes('7x7');
+    }
+    return false;
+  }
+
+  if (normTarget === '4x4') {
+    return title.includes('4x4') || title.includes('4×4') || pType === '4×4' || pType === '4x4';
+  }
+
+  if (normTarget === '6x6') {
+    return title.includes('6x6') || title.includes('6×6') || pType === '6×6' || pType === '6x6';
+  }
+
+  if (normTarget === '7x7') {
+    return title.includes('7x7') || title.includes('7×7') || pType === '7×7' || pType === '7x7';
+  }
+
+  if (normTarget === 'big-cubes') {
+    return (
+      title.includes('4x4') || title.includes('4×4') ||
+      title.includes('5x5') || title.includes('5×5') ||
+      title.includes('6x6') || title.includes('6×6') ||
+      title.includes('7x7') || title.includes('7×7') ||
+      title.includes('8x8') || title.includes('9x9') ||
+      title.includes('böyük kub') || title.includes('big cube')
+    );
+  }
+
+  if (normTarget === 'megaminx') {
+    return title.includes('megaminx') || pType === 'megaminx';
+  }
+
+  if (normTarget === 'pyraminx') {
+    return title.includes('pyraminx') || pType === 'pyraminx';
+  }
+
+  if (normTarget === 'skewb') {
+    return title.includes('skewb') || pType === 'skewb';
+  }
+
+  if (normTarget === 'square-1') {
+    return title.includes('square-1') || title.includes('sq-1') || title.includes('square 1') || pType === 'square-1';
+  }
+
+  if (normTarget === 'clock') {
+    return title.includes('clock') || pType === 'clock';
+  }
+
+  if (normTarget === 'fto') {
+    return title.includes('fto') || title.includes('octahedron');
+  }
+
+  if (normTarget === 'lubes') {
+    return title.includes('lube') || title.includes('yağ') || title.includes('lubricant');
+  }
+
+  if (normTarget === 'timers') {
+    return title.includes('timer') || title.includes('taymer');
+  }
+
+  if (normTarget === 'mats') {
+    return title.includes('mat') || title.includes('xalça');
+  }
+
+  if (normTarget === 'bags') {
+    return title.includes('bag') || title.includes('çanta') || title.includes('pouch');
+  }
+
+  if (normTarget === 'cases') {
+    return title.includes('case') || title.includes('qutu');
+  }
+
+  if (normTarget === 'bundles') {
+    return title.includes('bundle') || title.includes('dəst') || title.includes('set');
+  }
+
+  if (normTarget === 'beginner') {
+    return title.includes('beginner') || title.includes('yeni başlayan') || p.skill_level === 'beginner';
+  }
+
+  if (normTarget === 'pro') {
+    return title.includes('pro') || title.includes('flaqman') || title.includes('flagship') || p.skill_level === 'pro';
+  }
+
+  if (normTarget === 'magnetic') {
+    return Boolean(p.is_magnetic || title.includes('magnetic') || title.includes('maqnit') || title.includes(' m ') || title.endsWith(' m'));
+  }
+
+  if (normTarget === 'maglev') {
+    return Boolean(p.has_maglev || p.maglev || title.includes('maglev'));
+  }
+
+  if (normTarget === 'ball-core') {
+    return Boolean(p.has_ball_core || p.ball_core || title.includes('ball-core') || title.includes('ball core'));
+  }
+
+  if (normTarget === 'uv') {
+    return title.includes('uv') || p.exterior_finish === 'UV Coated';
+  }
+
+  if (pCatRaw && (pCatRaw.includes(normTarget) || normTarget.includes(pCatRaw))) return true;
+
+  return false;
+}
+
 export function CategoryClientContent(props: CategoryClientContentProps) {
   return (
     <React.Suspense fallback={<div className="min-h-screen bg-background" />}>
@@ -310,21 +480,10 @@ function CategoryClientContentInner({
     });
 
     if (categoryItem) {
-      const targetSlug = categoryItem.slug.toLowerCase();
-      const targetId = categoryItem.id.toLowerCase();
+      const targetSlug = categoryItem.slug;
+      const targetId = categoryItem.id;
 
-      return flattened.filter(p => {
-        if (!p.category_slug) return true;
-        const pCat = p.category_slug.toLowerCase();
-        return (
-          pCat === targetSlug ||
-          pCat === targetId ||
-          (targetSlug === '3x3' && (pCat === '3x3-kub' || pCat === '3x3-kublar')) ||
-          (targetSlug === '2x2' && (pCat === '2x2-kub' || pCat === '2x2-kublar')) ||
-          (targetSlug === '4x4' && (pCat === '4x4-kub' || pCat === '4x4-kublar')) ||
-          (targetSlug === '5x5' && (pCat === '5x5-kub' || pCat === '5x5-kublar'))
-        );
-      });
+      return flattened.filter(p => matchesCategory(p, targetSlug, targetId));
     }
 
     return flattened;

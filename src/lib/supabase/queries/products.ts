@@ -199,17 +199,17 @@ export async function getProductBySlug(slug: string) {
 
 export async function getActiveProducts() {
   try {
-    // Primary query using 'variants (*)' table relationship
+    // Primary query using 'variants (*)' and 'categories (*)' table relationships
     let { data, error } = await supabase
       .from('products')
-      .select('*, brands (*), variants (*)')
+      .select('*, brands (*), categories (*), variants (*)')
       .eq('is_active', true);
       
     if (error) {
       // Secondary fallback query if variants relationship is named product_variants
       const fallbackResult = await supabase
         .from('products')
-        .select('*, brands (*), product_variants (*)')
+        .select('*, brands (*), categories (*), product_variants (*)')
         .eq('is_active', true);
 
       if (!fallbackResult.error && fallbackResult.data) {
@@ -218,7 +218,7 @@ export async function getActiveProducts() {
       } else {
         const simpleResult = await supabase
           .from('products')
-          .select('*, brands (*)')
+          .select('*, brands (*), categories (*)')
           .eq('is_active', true);
         data = simpleResult.data;
         error = simpleResult.error;
@@ -428,6 +428,7 @@ export function mapProductToLocale(raw: RawProduct, locale: string): Product & {
     brand_id: raw.brand_id || undefined,
     product_variants: productVariants,
     variants: productVariants,
+    category_slug: raw.categories?.slug || raw.category_slug || raw.category_id || raw.category || undefined,
     family_slug: raw.family_slug || raw.product_family || undefined,
     product_family: raw.product_family || raw.family_slug || undefined,
   };

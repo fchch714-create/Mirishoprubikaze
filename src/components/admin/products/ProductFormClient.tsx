@@ -69,6 +69,8 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
   const [price_azn, setPrice_azn] = useState(isNew ? '' : '145.00');
   const [compareAtPrice_azn, setCompareAtPrice_azn] = useState(isNew ? '' : '155.00');
   const [slug, setSlug] = useState(isNew ? '' : 'gan-14-maglev-flagship-3x3');
+  const [supplierSku, setSupplierSku] = useState(isNew ? '' : '');
+  const [barcode, setBarcode] = useState(isNew ? '' : '');
   const [groupSlug, setGroupSlug] = useState(isNew ? '' : '');
   const [variantName, setVariantName] = useState(isNew ? '' : '');
   const [productType, setProductType] = useState('standard');
@@ -366,6 +368,8 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
             setCompareAtPrice_azn(rawComparePrice !== undefined && rawComparePrice !== null ? String(rawComparePrice) : '');
             
             setSlug(prod.slug || '');
+            setSupplierSku(prod.supplier_sku || '');
+            setBarcode(prod.barcode || '');
             setGroupSlug(prod.group_slug || '');
             setVariantName(prod.variant_name || '');
             setStatus(prod.status || (prod.is_active ? 'publish' : 'draft'));
@@ -530,6 +534,8 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
         description_en,
         description_ru,
         slug: slug || title_az.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
+        supplier_sku: supplierSku.trim() || undefined,
+        barcode: barcode.trim() || undefined,
         group_slug: groupSlug || undefined,
         variant_name: variantName || undefined,
         price_azn: priceNumber,
@@ -750,6 +756,36 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
                       placeholder="MagLev + Robot Stend Qutulu"
                     />
                     <p className="text-[11px] text-slate-500 mt-1">Məhsul səhifəsində versiya sevim knopkasında görünən ad</p>
+                  </div>
+                </div>
+
+                {/* Supplier SKU & Barcode Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-950/60 border border-slate-800 rounded-2xl">
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2">
+                      Təchizatçı Kodu (supplier_sku)
+                    </label>
+                    <input 
+                      type="text" 
+                      value={supplierSku}
+                      onChange={(e) => setSupplierSku(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 transition-colors font-mono text-sm"
+                      placeholder="Məsələn: MY-RS3M-V5-BALLCORE"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">Təchizatçı və ya fabrikin anbar kodu (boş buraxıla bilər)</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2">
+                      Barkod (barcode)
+                    </label>
+                    <input 
+                      type="text" 
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 transition-colors font-mono text-sm"
+                      placeholder="Məsələn: 6970123456789"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">Məhsulun xətti barkod nömrəsi (boş buraxıla bilər)</p>
                   </div>
                 </div>
                 

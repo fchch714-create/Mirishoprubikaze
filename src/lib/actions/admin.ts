@@ -2068,6 +2068,8 @@ function mapVariantsPayload(variants: any[], basePrice: number, productId?: stri
 
     const item: any = {
       sku: uniqueSku,
+      supplier_sku: v.supplier_sku ? String(v.supplier_sku).trim() : null,
+      barcode: v.barcode ? String(v.barcode).trim() : null,
       name: variantName,
       name_az: nameAz,
       name_en: nameEn,
@@ -2118,6 +2120,8 @@ export async function createProduct(payload: any) {
       description_en: payload.description_en,
       description_ru: payload.description_ru,
       slug: finalSlug,
+      supplier_sku: payload.supplier_sku || null,
+      barcode: payload.barcode || null,
       group_slug: payload.group_slug || null,
       variant_name: payload.variant_name || null,
       price_azn: basePrice,

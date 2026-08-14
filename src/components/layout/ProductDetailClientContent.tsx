@@ -682,10 +682,6 @@ function ProductDetailClientContentInner({
     typeBadge = product.product_type;
   }
 
-  const currentSku = selectedVariant 
-    ? (selectedVariant.sku || (product?.sku || (product?.id ? `RS-${String(product.id).substring(0, 4).toUpperCase()}` : 'RS-0000')))
-    : (product?.sku || (product?.id ? `RS-${String(product.id).substring(0, 4).toUpperCase()}` : 'RS-0000'));
-
   // Frequently Bought Together Bundle State
   const [bundleChecked2, setBundleChecked2] = React.useState(true);
   const [bundleChecked3, setBundleChecked3] = React.useState(true);
@@ -1131,7 +1127,6 @@ function ProductDetailClientContentInner({
     const unitText = locale === 'en' ? 'pcs' : locale === 'ru' ? 'шт.' : 'ədəd';
 
     if (product.brand) baseSpecs[brandLabel] = product.brand;
-    if (currentSku) baseSpecs['SKU'] = currentSku;
     if (product.category_slug) baseSpecs[catLabel] = product.category_slug;
     if (effectiveStock !== undefined) baseSpecs[stockLabel] = `${effectiveStock} ${unitText}`;
     
@@ -1183,7 +1178,7 @@ function ProductDetailClientContentInner({
     });
     
     return translatedSpecs;
-  }, [product, selectedVariant, currentSku, effectiveStock, locale]);
+  }, [product, selectedVariant, effectiveStock, locale]);
 
   // Sync quantity if stock changes
   React.useEffect(() => {
@@ -1229,7 +1224,7 @@ function ProductDetailClientContentInner({
     const cartItem = {
       id: cartItemId,
       variant_id: selectedVariant?.id || null,
-      sku: currentSku,
+      sku: selectedVariant?.sku || product?.sku || undefined,
       title: `${product.title}${titleAddition}`,
       price_azn: finalPrice,
       original_price_azn: hasDiscount ? numOriginalPrice : undefined,
@@ -1460,9 +1455,6 @@ function ProductDetailClientContentInner({
                     {locale === 'en' ? 'No reviews yet' : locale === 'ru' ? 'Пока нет отзывов' : 'Hələ rəy yoxdur'}
                   </span>
                 )}
-                <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded border border-border">
-                  SKU: {currentSku}
-                </span>
               </div>
             </div>
 

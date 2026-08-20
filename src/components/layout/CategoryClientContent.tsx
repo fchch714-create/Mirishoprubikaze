@@ -228,54 +228,102 @@ function matchesCategory(p: any, targetSlug: string, targetId: string): boolean 
   const target = (targetSlug || targetId || '').toLowerCase().trim();
   if (!target) return true;
 
-  const pCatRaw = (
-    p.category_slug || 
-    p.category_id || 
-    p.category || 
-    (p.categories as any)?.slug || 
-    ''
-  ).toString().toLowerCase().trim();
-
-  const title = (p.title || p.name || p.title_az || p.name_az || '').toLowerCase().trim();
-  const pType = (p.attrs?.productType || p.product_type || '').toLowerCase().trim();
-
   const normalizeCat = (str: string): string => {
     if (!str) return '';
-    if (['2x2', '2x2-kub', '2x2-kublar', '2x2-cubes', '2x2-cube'].includes(str)) return '2x2';
-    if (['3x3', '3x3-kub', '3x3-kublar', '3x3-cubes', '3x3-cube'].includes(str)) return '3x3';
-    if (['4x4', '4x4-kub', '4x4-kublar', '4x4-cubes', '4x4-cube'].includes(str)) return '4x4';
-    if (['5x5', '5x5-kub', '5x5-kublar', '5x5-cubes', '5x5-cube'].includes(str)) return '5x5';
-    if (['6x6', '6x6-kub', '6x6-kublar', '6x6-cubes', '6x6-cube'].includes(str)) return '6x6';
-    if (['7x7', '7x7-kub', '7x7-kublar', '7x7-cubes', '7x7-cube'].includes(str)) return '7x7';
-    if (['megaminx', 'megaminx-kub', 'megaminx-kublar'].includes(str)) return 'megaminx';
-    if (['pyraminx', 'pyraminx-kub', 'pyraminx-kublar'].includes(str)) return 'pyraminx';
-    if (['skewb', 'skewb-kub', 'skewb-kublar'].includes(str)) return 'skewb';
-    if (['square-1', 'square1', 'sq-1', 'sq1'].includes(str)) return 'square-1';
-    if (['clock'].includes(str)) return 'clock';
-    if (['fto'].includes(str)) return 'fto';
-    if (['big-cubes', 'boyuk-kublar', 'big_cubes'].includes(str)) return 'big-cubes';
-    return str;
+    const clean = str.toLowerCase().trim();
+    if (['2x2', '2x2-kub', '2x2-kublar', '2x2-cubes', '2x2-cube', '2x2 kub', '2x2 kublar'].includes(clean)) return '2x2';
+    if (['3x3', '3x3-kub', '3x3-kublar', '3x3-cubes', '3x3-cube', '3x3 kub', '3x3 kublar'].includes(clean)) return '3x3';
+    if (['4x4', '4x4-kub', '4x4-kublar', '4x4-cubes', '4x4-cube', '4x4 kub', '4x4 kublar'].includes(clean)) return '4x4';
+    if (['5x5', '5x5-kub', '5x5-kublar', '5x5-cubes', '5x5-cube', '5x5 kub', '5x5 kublar'].includes(clean)) return '5x5';
+    if (['6x6', '6x6-kub', '6x6-kublar', '6x6-cubes', '6x6-cube', '6x6 kub', '6x6 kublar'].includes(clean)) return '6x6';
+    if (['7x7', '7x7-kub', '7x7-kublar', '7x7-cubes', '7x7-cube', '7x7 kub', '7x7 kublar'].includes(clean)) return '7x7';
+    if (['megaminx', 'megaminx-kub', 'megaminx-kublar', 'megaminx kub'].includes(clean)) return 'megaminx';
+    if (['pyraminx', 'pyraminx-kub', 'pyraminx-kublar', 'pyraminx kub'].includes(clean)) return 'pyraminx';
+    if (['skewb', 'skewb-kub', 'skewb-kublar', 'skewb kub'].includes(clean)) return 'skewb';
+    if (['square-1', 'square1', 'sq-1', 'sq1', 'square-1 kub', 'square 1'].includes(clean)) return 'square-1';
+    if (['clock', 'clock kub', 'saat'].includes(clean)) return 'clock';
+    if (['fto', 'octahedron'].includes(clean)) return 'fto';
+    if (['big-cubes', 'boyuk-kublar', 'big_cubes', 'böyük kublar', 'boyuk kublar'].includes(clean)) return 'big-cubes';
+    if (['lubes', 'yağlar', 'yaglar', 'lubricant', 'lube'].includes(clean)) return 'lubes';
+    if (['timers', 'taymerlər', 'taymerler', 'timer'].includes(clean)) return 'timers';
+    if (['mats', 'xalçalar', 'xalcalar', 'mat'].includes(clean)) return 'mats';
+    if (['bags', 'çantalar', 'cantalar', 'bag', 'pouch'].includes(clean)) return 'bags';
+    if (['cases', 'qutular', 'case'].includes(clean)) return 'cases';
+    if (['bundles', 'dəstlər', 'destler', 'bundle', 'set'].includes(clean)) return 'bundles';
+    return clean;
   };
 
-  const normCat = normalizeCat(pCatRaw);
   const normTarget = normalizeCat(target);
 
-  // Exact match on normalized category
-  if (normCat && normCat === normTarget) return true;
+  // Collect all category identifiers assigned to this product from admin panel and database
+  const assignedCats = new Set<string>();
 
-  const standardCategories = ['2x2', '3x3', '4x4', '5x5', '6x6', '7x7', 'megaminx', 'pyraminx', 'skewb', 'square-1', 'clock', 'fto'];
-
-  // If product belongs explicitly to another standard category, exclude it
-  if (normCat && standardCategories.includes(normCat)) {
-    if (normTarget === 'big-cubes') {
-      return ['4x4', '5x5', '6x6', '7x7'].includes(normCat);
+  const addCatIdentifier = (val: any) => {
+    if (!val) return;
+    if (typeof val === 'string' || typeof val === 'number') {
+      const s = String(val).trim();
+      if (s) {
+        assignedCats.add(s.toLowerCase());
+        const norm = normalizeCat(s);
+        if (norm) assignedCats.add(norm);
+      }
+    } else if (typeof val === 'object') {
+      if (val.id) addCatIdentifier(val.id);
+      if (val.slug) addCatIdentifier(val.slug);
+      if (val.slug_az) addCatIdentifier(val.slug_az);
+      if (val.slug_en) addCatIdentifier(val.slug_en);
+      if (val.slug_ru) addCatIdentifier(val.slug_ru);
+      if (val.name_az) addCatIdentifier(val.name_az);
+      if (val.name_en) addCatIdentifier(val.name_en);
+      if (val.name_ru) addCatIdentifier(val.name_ru);
+      if (val.category_id) addCatIdentifier(val.category_id);
+      if (val.categories) addCatIdentifier(val.categories);
     }
-    if (standardCategories.includes(normTarget) && normCat !== normTarget) {
-      return false;
+  };
+
+  addCatIdentifier(p.category_slug);
+  addCatIdentifier(p.category_id);
+  addCatIdentifier(p.category);
+  addCatIdentifier(p.categories);
+  
+  if (Array.isArray(p.product_categories)) {
+    p.product_categories.forEach(addCatIdentifier);
+  }
+  if (Array.isArray(p.categories)) {
+    p.categories.forEach(addCatIdentifier);
+  }
+  if (Array.isArray(p.category_ids)) {
+    p.category_ids.forEach(addCatIdentifier);
+  }
+
+  // Check direct match with target slug or target id in assigned categories
+  if (assignedCats.has(target)) return true;
+  if (normTarget && assignedCats.has(normTarget)) return true;
+  if (targetId && assignedCats.has(targetId.toLowerCase())) return true;
+
+  // Handle Big Cubes category check for 4x4, 5x5, 6x6, 7x7
+  if (normTarget === 'big-cubes') {
+    if (assignedCats.has('4x4') || assignedCats.has('5x5') || assignedCats.has('6x6') || assignedCats.has('7x7')) {
+      return true;
     }
   }
 
-  // Fallback title/type matching for missing or generic category slug
+  const title = (p.title || p.name || p.title_az || p.name_az || '').toLowerCase().trim();
+  const pType = (p.attrs?.productType || p.product_type || '').toLowerCase().trim();
+  const standardCategories = ['2x2', '3x3', '4x4', '5x5', '6x6', '7x7', 'megaminx', 'pyraminx', 'skewb', 'square-1', 'clock', 'fto'];
+
+  // If the product is explicitly assigned to a standard category other than the target, don't fallback to false match
+  const explicitlyAssignedStandard = standardCategories.filter(cat => assignedCats.has(cat));
+  if (explicitlyAssignedStandard.length > 0) {
+    if (normTarget === 'big-cubes') {
+      return explicitlyAssignedStandard.some(c => ['4x4', '5x5', '6x6', '7x7'].includes(c));
+    }
+    if (standardCategories.includes(normTarget)) {
+      return explicitlyAssignedStandard.includes(normTarget);
+    }
+  }
+
+  // Fallback title / attribute matching when category assignment is missing in database
   if (normTarget === '5x5') {
     return title.includes('5x5') || title.includes('5×5') || pType === '5×5' || pType === '5x5';
   }
@@ -386,7 +434,9 @@ function matchesCategory(p: any, targetSlug: string, targetId: string): boolean 
     return title.includes('uv') || p.exterior_finish === 'UV Coated';
   }
 
-  if (pCatRaw && (pCatRaw.includes(normTarget) || normTarget.includes(pCatRaw))) return true;
+  for (const cat of assignedCats) {
+    if (cat.includes(normTarget) || normTarget.includes(cat)) return true;
+  }
 
   return false;
 }

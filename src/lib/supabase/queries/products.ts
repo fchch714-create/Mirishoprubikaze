@@ -199,17 +199,17 @@ export async function getProductBySlug(slug: string) {
 
 export async function getActiveProducts() {
   try {
-    // Primary query using 'variants (*)' and 'categories (*)' table relationships
+    // Primary query using 'variants (*)', 'categories (*)', and 'product_categories (*)'
     let { data, error } = await supabase
       .from('products')
-      .select('*, brands (*), categories (*), variants (*)')
+      .select('*, brands (*), categories (*), product_categories (*), variants (*)')
       .eq('is_active', true);
       
     if (error) {
       // Secondary fallback query if variants relationship is named product_variants
       const fallbackResult = await supabase
         .from('products')
-        .select('*, brands (*), categories (*), product_variants (*)')
+        .select('*, brands (*), categories (*), product_categories (*), product_variants (*)')
         .eq('is_active', true);
 
       if (!fallbackResult.error && fallbackResult.data) {
@@ -218,11 +218,20 @@ export async function getActiveProducts() {
       } else {
         const simpleResult = await supabase
           .from('products')
-          .select('*, brands (*), categories (*)')
+          .select('*, brands (*), categories (*), variants (*)')
           .eq('is_active', true);
         data = simpleResult.data;
         error = simpleResult.error;
       }
+    }
+    
+    if (error) {
+      const basicResult = await supabase
+        .from('products')
+        .select('*, brands (*), variants (*)')
+        .eq('is_active', true);
+      data = basicResult.data;
+      error = basicResult.error;
     }
     
     if (error) {
@@ -231,6 +240,39 @@ export async function getActiveProducts() {
     }
     
     if (!data || !Array.isArray(data)) return [];
+
+    // Also fetch product_categories junction entries if any product has no category attached
+    try {
+      const { data: catRelData } = await supabase
+        .from('product_categories')
+        .select('product_id, category_id, categories(*)');
+
+      if (catRelData && Array.isArray(catRelData) && catRelData.length > 0) {
+        const catMap = new Map<string, any[]>();
+        for (const item of catRelData) {
+          if (!catMap.has(item.product_id)) {
+            catMap.set(item.product_id, []);
+          }
+          catMap.get(item.product_id)!.push(item);
+        }
+
+        for (const p of data) {
+          const links = catMap.get(p.id);
+          if (links && links.length > 0) {
+            p.product_categories = links;
+            if (!p.categories && links[0].categories) {
+              p.categories = links[0].categories;
+            }
+            if (!p.category_id && links[0].category_id) {
+              p.category_id = links[0].category_id;
+            }
+          }
+        }
+      }
+    } catch (catErr) {
+      // Non-blocking fallback
+    }
+
     const uniqueProducts = Array.from(new Map(data.map((p: any) => [p.id, p])).values());
     return uniqueProducts as RawProduct[];
   } catch (err) {

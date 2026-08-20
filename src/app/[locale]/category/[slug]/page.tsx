@@ -36,9 +36,13 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   try {
     const products = await getActiveProducts();
     // Add additional fields used by CategoryClientContent
-    const mapped = products.map((p) => ({
+    const mapped = products.map((p: any) => ({
       ...mapProductToLocale(p, locale),
-      category_slug: p.category_slug || p.category_id || p.category || undefined,
+      category_slug: p.category_slug || p.category_id || p.category || (p.categories as any)?.slug || undefined,
+      category_id: p.category_id || (p.categories as any)?.id || undefined,
+      category_ids: p.category_ids || undefined,
+      categories: p.categories || undefined,
+      product_categories: p.product_categories || undefined,
       brand: p.brands?.name || p.brand || p.brand_name || undefined,
       brands: p.brands,
       brand_id: p.brand_id,

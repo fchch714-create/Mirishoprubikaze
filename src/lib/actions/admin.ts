@@ -2112,6 +2112,10 @@ export async function createProduct(payload: any) {
     const safeGallery = formatGalleryImages(payload.gallery_images);
     const basePrice = Number(payload.price_azn || payload.price || 0);
 
+    const categoryId = payload.category_ids && payload.category_ids.length > 0 
+      ? payload.category_ids[0] 
+      : (payload.category_id || null);
+
     const insertObj: any = {
       title_az: payload.title_az,
       title_en: payload.title_en,
@@ -2127,6 +2131,7 @@ export async function createProduct(payload: any) {
       price_azn: basePrice,
       compare_at_price_azn: payload.compare_at_price_azn,
       brand_id: payload.brand_id,
+      category_id: categoryId,
       is_active: payload.is_active ?? true,
       status: payload.status === 'active' ? 'publish' : (payload.status || 'publish'),
       image_url: payload.image_url,
@@ -2156,11 +2161,19 @@ export async function createProduct(payload: any) {
       .select()
       .single();
 
-    if (prodError && (prodError.message?.includes('add_ons') || prodError.code === 'PGRST204')) {
+    if (prodError && (prodError.message?.includes('category_id') || prodError.message?.includes('add_ons') || prodError.code === 'PGRST204')) {
+      // If schema doesn't have category_id column directly or add_ons, retry safely
       delete insertObj.add_ons;
       const res = await supabase.from('products').insert(insertObj).select().single();
-      product = res.data;
-      prodError = res.error;
+      if (res.error && res.error.message?.includes('category_id')) {
+        delete insertObj.category_id;
+        const res2 = await supabase.from('products').insert(insertObj).select().single();
+        product = res2.data;
+        prodError = res2.error;
+      } else {
+        product = res.data;
+        prodError = res.error;
+      }
     }
 
     if (prodError) throw prodError;
@@ -2249,12 +2262,27 @@ export async function updateProduct(id: string, payload: any) {
 
     const basePrice = Number(directFields.price_azn || directFields.price || 0);
 
-    const { data: product, error: prodError } = await supabase
+    if (category_ids !== undefined) {
+      if (Array.isArray(category_ids) && category_ids.length > 0) {
+        directFields.category_id = category_ids[0];
+      } else {
+        directFields.category_id = null;
+      }
+    }
+
+    let { data: product, error: prodError } = await supabase
       .from('products')
       .update(directFields)
       .eq('id', id)
       .select()
       .single();
+
+    if (prodError && prodError.message?.includes('category_id')) {
+      delete directFields.category_id;
+      const res = await supabase.from('products').update(directFields).eq('id', id).select().single();
+      product = res.data;
+      prodError = res.error;
+    }
 
     if (prodError) throw prodError;
 

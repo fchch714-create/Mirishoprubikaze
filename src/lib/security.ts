@@ -155,34 +155,23 @@ export function validateEnum<T extends string>(value: any, allowedValues: readon
   return value as T;
 }
 
+const HTML_ENTITY_MAP: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#x27;',
+  '`': '&#x60;',
+  '/': '&#x2F;',
+};
+
 /**
- * Sanitizes input strings to prevent XSS attacks by escaping HTML characters
- * and removing common script tags/event handlers.
+ * Sanitizes input strings to prevent XSS attacks by securely escaping HTML characters.
+ * Operates in linear time without vulnerable polynomial regular expressions.
  */
 export function sanitizeInput(input: string): string {
-  if (!input) return '';
-  
-  // 1. Remove script tags and their content
-  let sanitized = input.replace(/<script[^>]*>([\S\s]*?)<\/script>/gi, '');
-  
-  // 2. Remove inline event handlers (e.g., onclick, onerror, onload)
-  sanitized = sanitized.replace(/on\w+\s*=\s*"[^"]*"/gi, '');
-  sanitized = sanitized.replace(/on\w+\s*=\s*'[^']*'/gi, '');
-  sanitized = sanitized.replace(/on\w+\s*=\s*[^\s>]+/gi, '');
-  
-  // 3. Remove javascript: pseudo-protocol URLs
-  sanitized = sanitized.replace(/javascript:\s*[^"'>\s]+/gi, '');
-  
-  // 4. HTML Escape standard characters
-  sanitized = sanitized
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
-    
-  return sanitized;
+  if (!input || typeof input !== 'string') return '';
+  return input.replace(/[&<>"'`/]/g, (char) => HTML_ENTITY_MAP[char] || char);
 }
 
 /**

@@ -1063,7 +1063,8 @@ export function HomepageContent({ products = [], dict, locale, banners = [] }: H
               {dbBlogPosts.map((post) => {
                 const title = post[`title_${locale}`] || post.title_az || '';
                 const content = post[`content_${locale}`] || post.content_az || '';
-                const snippet = content ? content.replace(/<[^>]*>/g, '').substring(0, 100) + '...' : '';
+                const cleanText = content ? content.replace(/<\/?[^>]+(>|$)/g, ' ').replace(/\s+/g, ' ').trim() : '';
+                const snippet = cleanText ? cleanText.substring(0, 100) + '...' : '';
                 const dateStr = post.created_at ? new Date(post.created_at).toLocaleDateString() : '';
 
                 return (

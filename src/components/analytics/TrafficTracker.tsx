@@ -16,17 +16,37 @@ export default function TrafficTracker() {
 
       const urlParams = new URLSearchParams(window.location.search);
       const utmSource = urlParams.get('utm_source')?.toLowerCase() || '';
-      const ref = typeof document !== 'undefined' ? (document.referrer?.toLowerCase() || '') : '';
+      
+      let refHost = '';
+      if (typeof document !== 'undefined' && document.referrer) {
+        try {
+          refHost = new URL(document.referrer).hostname.toLowerCase();
+        } catch {
+          refHost = '';
+        }
+      }
 
       let source = 'direct';
-      if (utmSource.includes('instagram') || ref.includes('instagram.com') || ref.includes('ig.me')) {
+      if (
+        utmSource === 'instagram' ||
+        refHost === 'instagram.com' ||
+        refHost.endsWith('.instagram.com') ||
+        refHost === 'ig.me' ||
+        refHost.endsWith('.ig.me')
+      ) {
         source = 'instagram';
-      } else if (utmSource.includes('google') || ref.includes('google.com') || ref.includes('google.az')) {
+      } else if (
+        utmSource === 'google' ||
+        refHost === 'google.com' ||
+        refHost.endsWith('.google.com') ||
+        refHost === 'google.az' ||
+        refHost.endsWith('.google.az')
+      ) {
         source = 'google_seo';
-      } else if (utmSource.includes('ref') || utmSource.includes('referral') || (ref && !ref.includes(window.location.hostname))) {
+      } else if (utmSource.includes('ref') || utmSource.includes('referral') || (refHost && refHost !== window.location.hostname)) {
         source = 'referral';
       } else if (utmSource) {
-        source = utmSource;
+        source = utmSource.replace(/[^a-z0-9_-]/g, '').slice(0, 50) || 'direct';
       }
 
       sessionStorage.setItem('rubik_traffic_tracked', 'true');

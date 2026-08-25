@@ -34,7 +34,7 @@ export async function getSettings(key: string) {
 
     return { success: true, data: data?.value || {} };
   } catch (error: any) {
-    console.error(`getSettings Error for key ${key}:`, error.message);
+    console.error('getSettings Error for key:', key, error?.message || error);
     return { success: false, error: error.message || 'Tənzimləmələr yüklənə bilmədi' };
   }
 }
@@ -92,7 +92,7 @@ export async function updateSettings(key: string, value: any) {
 
     return { success: true, data };
   } catch (error: any) {
-    console.error(`updateSettings Error for key ${key}:`, error.message);
+    console.error('updateSettings Error for key:', key, error?.message || error);
     return { success: false, error: error.message || 'Tənzimləmələr yenilənərkən xəta baş verdi' };
   }
 }

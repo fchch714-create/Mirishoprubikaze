@@ -14,10 +14,25 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({ status: 'success' });
 
     const host = req.headers.get('host') || '';
-    const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+    const cleanHost = host.split(':')[0].toLowerCase();
+    const isLocalhost = cleanHost === 'localhost' || cleanHost === '127.0.0.1';
+    const isRunApp = cleanHost.endsWith('.run.app');
+    
     const referer = req.headers.get('referer') || '';
-    const isIframe = req.headers.get('sec-fetch-dest') === 'iframe' || referer.includes('ai.studio') || referer.includes('google.com');
-    const sameSiteValue = (isIframe || host.includes('.run.app')) ? 'none' : 'lax';
+    const secFetchDest = req.headers.get('sec-fetch-dest') || '';
+    const isIframe = (() => {
+      if (secFetchDest === 'iframe') return true;
+      if (!referer) return false;
+      try {
+        const parsed = new URL(referer);
+        const h = parsed.hostname.toLowerCase();
+        return h === 'ai.studio' || h.endsWith('.ai.studio') || h === 'google.com' || h.endsWith('.google.com');
+      } catch {
+        return false;
+      }
+    })();
+
+    const sameSiteValue = (isIframe || isRunApp) ? 'none' : 'lax';
 
     if (supabaseUrl && supabaseAnonKey) {
       const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon, Plus, Edit3, Trash2, Check, X, MoveUp, MoveDown, LayoutTemplate } from 'lucide-react';
 import { getBanners, createBanner, updateBanner, deleteBanner } from '@/lib/actions/admin';
 import { MediaUploadField } from '@/components/admin/MediaUploadField';
+import { sanitizeImageUrl } from '@/lib/image';
 
 interface Banner {
   id: string;
@@ -317,7 +318,7 @@ export default function BannersClient() {
                 {imageUrl && (
                   <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/50 p-2">
                     <img 
-                      src={imageUrl} 
+                      src={sanitizeImageUrl(imageUrl)} 
                       alt="Banner Önizləmə" 
                       className="w-full h-40 object-cover rounded-xl"
                       onError={(e) => {

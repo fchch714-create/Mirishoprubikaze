@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Plus, Search, Edit3, Trash2, Check, X, Image as ImageIcon, Eye } from 'lucide-react';
 import { getBlogPosts, createBlogPost, updateBlogPost, deleteBlogPost } from '@/lib/actions/admin';
 import { MediaUploadField } from '@/components/admin/MediaUploadField';
+import { sanitizeImageUrl } from '@/lib/image';
 
 interface BlogPost {
   id: string;
@@ -254,7 +255,7 @@ export default function BlogClient() {
                 {featuredImage && (
                   <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/50 p-2">
                     <img 
-                      src={featuredImage} 
+                      src={sanitizeImageUrl(featuredImage)} 
                       alt="Featured Önizləmə" 
                       className="w-full h-40 object-cover rounded-xl"
                       onError={(e) => {

@@ -5,6 +5,7 @@ import { Package, Plus, Search, Edit3, Trash2, Check, X, Image as ImageIcon, Che
 import { getCollections, createCollection, updateCollection, deleteCollection } from '@/lib/actions/admin';
 import { getProducts } from '@/lib/actions/catalog';
 import { MediaUploadField } from '@/components/admin/MediaUploadField';
+import { sanitizeImageUrl } from '@/lib/image';
 
 interface Collection {
   id: string;
@@ -285,7 +286,7 @@ export default function CollectionsClient() {
                 {imageUrl && (
                   <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/50 p-2 max-w-sm">
                     <img 
-                      src={imageUrl} 
+                      src={sanitizeImageUrl(imageUrl)} 
                       alt="Collection Preview" 
                       className="w-full h-32 object-cover rounded-xl"
                       onError={(e) => {

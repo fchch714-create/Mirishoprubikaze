@@ -153,7 +153,7 @@ export function CartClientContent({ locale, dict }: CartClientContentProps) {
         price_azn: Number(p.price_azn || 0),
         image_url: sanitizeImageUrl(p.image_url, p.id),
         brand: String(brandName),
-        desc: String(desc).replace(/<[^>]*>/g, '').substring(0, 60),
+        desc: String(desc).replace(/<\/?[^>]+(>|$)/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 60),
         is_preorder: Boolean(p.is_preorder),
         stock_qty: p.stock_quantity ?? p.stock
       };

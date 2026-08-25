@@ -74,7 +74,8 @@ export default function BlogListingPage({ params }: { params: { locale: string }
             {posts.map(post => {
               const title = getLocalized(post, 'title');
               const content = getLocalized(post, 'content');
-              const snippet = content ? content.replace(/<[^>]*>/g, '').substring(0, 120) + '...' : '';
+              const cleanText = content ? content.replace(/<\/?[^>]+(>|$)/g, ' ').replace(/\s+/g, ' ').trim() : '';
+              const snippet = cleanText ? cleanText.substring(0, 120) + '...' : '';
 
               return (
                 <div 

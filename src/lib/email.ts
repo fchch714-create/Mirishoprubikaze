@@ -9,6 +9,17 @@ export interface SendEmailOptions {
   text?: string;
 }
 
+function convertHtmlToPlainText(htmlContent: string): string {
+  if (!htmlContent) return '';
+  let result = htmlContent;
+  let prev = '';
+  while (prev !== result) {
+    prev = result;
+    result = result.replace(/<[^>]*>/g, ' ');
+  }
+  return result.replace(/\s+/g, ' ').trim();
+}
+
 /**
  * Universal Email Sender using Resend API (if RESEND_API_KEY set) or Nodemailer SMTP fallback
  */
@@ -20,6 +31,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
       return { success: false, error: 'Keçərli email ünvanı daxil edilməyib.' };
     }
 
+    const plainText = text || convertHtmlToPlainText(html);
     const resendApiKey = process.env.RESEND_API_KEY;
     const smtpHost = process.env.SMTP_HOST;
 
@@ -37,7 +49,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
           to: [to],
           subject: subject,
           html: html,
-          text: text || html.replace(/<[^>]+>/g, '')
+          text: plainText
         })
       });
 
@@ -67,7 +79,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
         to: to,
         subject: subject,
         html: html,
-        text: text || html.replace(/<[^>]+>/g, '')
+        text: plainText
       });
 
       console.log(`[Nodemailer SMTP] Email sent to ${to}`);

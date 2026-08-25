@@ -9,19 +9,24 @@ export function sanitizeImageUrl(url?: string | null, fallbackSeed = 'default'):
     return trimmed;
   }
 
-  // Preserve any valid http/https URL or relative path
-  if (trimmed.startsWith('/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+  // Preserve any relative path
+  if (trimmed.startsWith('/')) {
     return trimmed;
   }
 
-  // If it's a dummy placeholder without protocol or path
-  if (
-    trimmed.includes('via.placeholder.com') ||
-    trimmed.includes('placeholder.com') ||
-    trimmed.includes('dummyimage.com')
-  ) {
-    const cleanSeed = trimmed.split('/').pop()?.replace(/\.[^/.]+$/, '') || fallbackSeed;
-    return `https://picsum.photos/seed/${cleanSeed}/600/600`;
+  // Handle http/https URLs
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    try {
+      const parsed = new URL(trimmed);
+      const host = parsed.hostname.toLowerCase();
+      if (host === 'via.placeholder.com' || host === 'placeholder.com' || host === 'dummyimage.com') {
+        const cleanSeed = parsed.pathname.split('/').filter(Boolean).pop()?.replace(/\.[^/.]+$/, '') || fallbackSeed;
+        return `https://picsum.photos/seed/${cleanSeed}/600/600`;
+      }
+      return trimmed;
+    } catch {
+      return `https://picsum.photos/seed/${fallbackSeed}/600/600`;
+    }
   }
 
   return `https://picsum.photos/seed/${fallbackSeed}/600/600`;

@@ -96,8 +96,18 @@ export function MediaUploadField({
     }
   };
 
-  const isBase64 = safeValue.startsWith('data:');
+  const isBase64 = safeValue.startsWith('data:image/');
   const isHttpUrl = safeValue.startsWith('http://') || safeValue.startsWith('https://');
+  const isCloudinaryUrl = (() => {
+    if (!isHttpUrl) return false;
+    try {
+      const h = new URL(safeValue).hostname.toLowerCase();
+      return h === 'res.cloudinary.com' || h.endsWith('.cloudinary.com');
+    } catch {
+      return false;
+    }
+  })();
+  const previewImgSrc = (isBase64 || isHttpUrl || safeValue.startsWith('/')) ? safeValue : '';
 
   return (
     <div className="space-y-2">
@@ -118,7 +128,7 @@ export function MediaUploadField({
             >
               {/* eslint-disable-next-html-element-suppression */}
               <img
-                src={safeValue}
+                src={previewImgSrc}
                 alt="Media preview"
                 className="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform"
                 onError={(e) => { (e.currentTarget as any).style.display = 'none'; }}
@@ -173,7 +183,7 @@ export function MediaUploadField({
 
           <div className="flex items-center gap-2 shrink-0">
             {/* If user typed a http URL and wants to import it to Cloudinary */}
-            {isHttpUrl && !safeValue.includes('cloudinary.com') && (
+            {isHttpUrl && !isCloudinaryUrl && (
               <button
                 type="button"
                 disabled={uploading}

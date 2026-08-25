@@ -32,6 +32,9 @@ export function ImageZoomModal({ imageUrl, title = "Şəkil Baxışı", onClose 
   const containerRef = useRef<HTMLDivElement>(null);
   const pushedHistoryRef = useRef<boolean>(false);
 
+  const isSafeProtocol = Boolean(imageUrl && (imageUrl.startsWith('https://') || imageUrl.startsWith('http://') || imageUrl.startsWith('data:image/') || imageUrl.startsWith('/')));
+  const safeUrl = isSafeProtocol ? (imageUrl as string) : '';
+
   // Manual close function that cleans up history state if pushed
   const handleManualClose = React.useCallback(() => {
     if (pushedHistoryRef.current) {
@@ -213,15 +216,17 @@ export function ImageZoomModal({ imageUrl, title = "Şəkil Baxışı", onClose 
           </button>
 
           {/* Open original */}
-          <a
-            href={imageUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 text-slate-300 hover:text-white rounded-xl transition-colors"
-            title="Orijinal Ölçüdə Yeni Səhifədə Aç"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </a>
+          {safeUrl && (
+            <a
+              href={safeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 text-slate-300 hover:text-white rounded-xl transition-colors"
+              title="Orijinal Ölçüdə Yeni Səhifədə Aç"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          )}
 
           {/* Close button */}
           <button
@@ -261,7 +266,7 @@ export function ImageZoomModal({ imageUrl, title = "Şəkil Baxışı", onClose 
         >
           {/* eslint-disable-next-html-element-suppression */}
           <img
-            src={imageUrl}
+            src={safeUrl}
             alt={title}
             onLoad={(e) => {
               const img = e.currentTarget;

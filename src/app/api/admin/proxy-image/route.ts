@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireStaff } from "@/lib/security";
 
 /**
  * Validates whether a target URL is a safe, public web address (SSRF Protection)
@@ -25,7 +26,7 @@ function isSafeUrl(urlStr: string): boolean {
       'instance-data',
     ];
 
-    if (blockedHosts.includes(hostname)) {
+    if (blockedHosts.includes(hostname) || hostname.endsWith('.internal') || hostname.endsWith('.local')) {
       return false;
     }
 
@@ -35,7 +36,8 @@ function isSafeUrl(urlStr: string): boolean {
       hostname.startsWith('192.168.') ||
       hostname.startsWith('169.254.') ||
       hostname.startsWith('127.') ||
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
+      hostname.startsWith('0.')
     ) {
       return false;
     }
@@ -48,24 +50,30 @@ function isSafeUrl(urlStr: string): boolean {
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const imageUrl = searchParams.get("url");
+    // 1. Authorize admin/staff
+    await requireStaff();
 
-    if (!imageUrl) {
+    const { searchParams } = new URL(req.url);
+    const rawUrl = searchParams.get("url");
+
+    if (!rawUrl) {
       return NextResponse.json({ error: "url parametri tələb olunur" }, { status: 400 });
     }
 
-    if (!isSafeUrl(imageUrl)) {
+    if (!isSafeUrl(rawUrl)) {
       return NextResponse.json(
         { error: "Təhlükəsizlik xətası: Yalnız ictimai və etibarlı şəkil linklərinə icazə verilir (SSRF bloklandı)." },
         { status: 403 }
       );
     }
 
+    // Validate sanitized URL object
+    const targetUrl = new URL(rawUrl);
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
 
-    const response = await fetch(imageUrl, {
+    const response = await fetch(targetUrl.href, {
       signal: controller.signal,
       headers: {
         "User-Agent":

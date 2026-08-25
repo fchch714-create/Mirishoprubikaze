@@ -51,7 +51,7 @@ export function CartClientContent({ locale, dict }: CartClientContentProps) {
       setUser(session?.user || null);
     });
     return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+  }, []);
   const {
     items,
     savedItems,

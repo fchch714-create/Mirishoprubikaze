@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadMediaToCloudinary } from '@/lib/cloudinary';
+import { requireStaff } from '@/lib/security';
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. Enforce Staff (Admin/Manager) authorization
+    await requireStaff();
+
     const contentType = req.headers.get('content-type') || '';
 
     let fileToUpload: string | Buffer;
@@ -22,7 +26,15 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (customFolder) folder = customFolder;
+      // Max file size check (25MB)
+      if (file.size > 25 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: 'Fayl həcmi maksimum 25MB ola bilər.' },
+          { status: 400 }
+        );
+      }
+
+      if (customFolder) folder = customFolder.replace(/[^a-zA-Z0-9_\-\/]/g, '');
       if (customResourceType && ['image', 'video', 'auto', 'raw'].includes(customResourceType)) {
         resourceType = customResourceType as any;
       } else if (file.type.startsWith('video/')) {
@@ -45,7 +57,7 @@ export async function POST(req: NextRequest) {
       }
 
       fileToUpload = file;
-      if (customFolder) folder = customFolder;
+      if (customFolder) folder = String(customFolder).replace(/[^a-zA-Z0-9_\-\/]/g, '');
       if (customResourceType && ['image', 'video', 'auto', 'raw'].includes(customResourceType)) {
         resourceType = customResourceType as any;
       }
@@ -73,11 +85,13 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: any) {
     console.error('Cloudinary API upload error:', err);
+    const status = err.message?.includes('Səlahiyyətsiz') ? 403 : 500;
     return NextResponse.json(
       {
         error: err?.message || 'Fayl Cloudinary-yə yüklənərkən xəta baş verdi.',
       },
-      { status: 500 }
+      { status }
     );
   }
 }
+

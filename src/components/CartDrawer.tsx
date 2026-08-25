@@ -36,7 +36,7 @@ export function CartDrawer({ isOpen, onClose, dict, locale }: CartDrawerProps) {
       setUser(session?.user || null);
     });
     return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+  }, []);
 
   const subtotal = isMounted ? getTotalPrice() : 0;
   const freeShippingThreshold = 100; // 100 AZN Free Shipping

@@ -3,38 +3,57 @@
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server';
+import { sanitizeInput } from '@/lib/security';
 
-const SECRET = process.env.OTP_SECRET || 'fallback-secure-otp-secret-1234567890';
+const SECRET = process.env.OTP_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'fallback-secure-otp-secret-1234567890';
 
+/**
+ * Generate a cryptographically secure 6-digit OTP
+ */
 export async function generateOTP(): Promise<string> {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
+/**
+ * Generate HMAC token for stateless OTP verification
+ */
 export async function generateToken(email: string, otp: string, expiryTime: number): Promise<string> {
-  const data = `${email.toLowerCase()}:${otp}:${expiryTime}`;
+  const normalizedEmail = email.toLowerCase().trim();
+  const data = `${normalizedEmail}:${otp}:${expiryTime}`;
   const hash = crypto.createHmac('sha256', SECRET).update(data).digest('hex');
-  return `${expiryTime}:${email.toLowerCase()}:${hash}`;
+  return `${expiryTime}:${normalizedEmail}:${hash}`;
 }
 
+/**
+ * Verify HMAC token with timing-safe comparison
+ */
 export async function verifyToken(email: string, otp: string, token: string): Promise<boolean> {
   try {
-    if (!token) return false;
-    const [expiryTimeStr, tokenEmail, hash] = token.split(':');
+    if (!token || !email || !otp) return false;
+    const parts = token.split(':');
+    if (parts.length !== 3) return false;
+    
+    const [expiryTimeStr, tokenEmail, hash] = parts;
     if (!expiryTimeStr || !tokenEmail || !hash) return false;
     
     const expiryTime = parseInt(expiryTimeStr, 10);
-    if (Date.now() > expiryTime) {
+    if (isNaN(expiryTime) || Date.now() > expiryTime) {
       return false; // Expired
     }
     
-    if (tokenEmail.toLowerCase() !== email.toLowerCase()) {
+    const normalizedEmail = email.toLowerCase().trim();
+    if (tokenEmail.toLowerCase() !== normalizedEmail) {
       return false; // Email mismatch
     }
     
-    const data = `${tokenEmail.toLowerCase()}:${otp}:${expiryTime}`;
+    const data = `${normalizedEmail}:${otp.trim()}:${expiryTime}`;
     const expectedHash = crypto.createHmac('sha256', SECRET).update(data).digest('hex');
     
-    return hash === expectedHash;
+    const hashBuf = Buffer.from(hash, 'hex');
+    const expectedHashBuf = Buffer.from(expectedHash, 'hex');
+
+    if (hashBuf.length !== expectedHashBuf.length) return false;
+    return crypto.timingSafeEqual(hashBuf, expectedHashBuf);
   } catch (err) {
     return false;
   }
@@ -123,26 +142,28 @@ async function sendOTPEmail(email: string, otp: string, type: 'register' | 'rese
 
 export async function sendOTPAction(email: string) {
   try {
-    if (!email) {
-      return { error: 'E-poçt ünvanı daxil edilməyib.' };
+    const cleanEmail = sanitizeInput(email || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { error: 'Düzgün e-poçt ünvanı daxil edilməlidir.' };
     }
 
-    // Check if user already exists in Auth DB
+    // Check if user already exists in DB
     const supabaseAdmin = createAdminSupabaseClient();
-    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('email', cleanEmail)
+      .maybeSingle();
 
-    if (!listError && users) {
-      const userExists = users.some(u => u.email?.toLowerCase() === email.toLowerCase());
-      if (userExists) {
-        return { error: 'Bu e-poçt ünvanı ilə artıq hesab yaradılıb. Zəhmət olmasa daxil olun.' };
-      }
+    if (profile) {
+      return { error: 'Bu e-poçt ünvanı ilə artıq hesab mövcuddur. Zəhmət olmasa daxil olun.' };
     }
 
     const otp = await generateOTP();
     const expiryTime = Date.now() + 5 * 60 * 1000; // 5 minutes
-    const token = await generateToken(email, otp, expiryTime);
+    const token = await generateToken(cleanEmail, otp, expiryTime);
 
-    await sendOTPEmail(email, otp, 'register');
+    await sendOTPEmail(cleanEmail, otp, 'register');
     return { success: true, token };
   } catch (err: any) {
     return { error: err?.message || 'Təsdiq kodu göndərilərkən xəta baş verdi.' };
@@ -151,16 +172,16 @@ export async function sendOTPAction(email: string) {
 
 export async function sendResetOTPAction(email: string) {
   try {
-    if (!email) {
-      return { error: 'E-poçt ünvanı daxil edilməyib.' };
+    const cleanEmail = sanitizeInput(email || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { error: 'Düzgün e-poçt ünvanı daxil edilməlidir.' };
     }
     
-    // Optional check: see if user exists in Auth DB
     const supabaseAdmin = createAdminSupabaseClient();
     const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
     
-    if (!listError) {
-      const userExists = users?.some(u => u.email?.toLowerCase() === email.toLowerCase());
+    if (!listError && users) {
+      const userExists = users.some(u => u.email?.toLowerCase() === cleanEmail);
       if (!userExists) {
         return { error: 'Bu e-poçt ünvanı ilə qeydiyyatdan keçmiş istifadəçi tapılmadı.' };
       }
@@ -168,9 +189,9 @@ export async function sendResetOTPAction(email: string) {
 
     const otp = await generateOTP();
     const expiryTime = Date.now() + 5 * 60 * 1000; // 5 minutes
-    const token = await generateToken(email, otp, expiryTime);
+    const token = await generateToken(cleanEmail, otp, expiryTime);
 
-    await sendOTPEmail(email, otp, 'reset');
+    await sendOTPEmail(cleanEmail, otp, 'reset');
     return { success: true, token };
   } catch (err: any) {
     return { error: err?.message || 'Şifrə sıfırlama kodu göndərilərkən xəta baş verdi.' };
@@ -179,13 +200,17 @@ export async function sendResetOTPAction(email: string) {
 
 export async function verifyOTPAndRegisterAction(formData: FormData, token: string) {
   try {
-    const email = formData.get('email') as string;
-    const otp = formData.get('otp') as string;
-    const password = formData.get('password') as string;
-    const fullName = formData.get('fullName') as string;
+    const email = sanitizeInput((formData.get('email') as string) || '').trim().toLowerCase();
+    const otp = sanitizeInput((formData.get('otp') as string) || '').trim();
+    const password = (formData.get('password') as string) || '';
+    const fullName = sanitizeInput((formData.get('fullName') as string) || '').trim();
 
     if (!email || !otp || !password) {
       return { error: 'Məlumatlar tam daxil edilməyib.' };
+    }
+
+    if (password.length < 6) {
+      return { error: 'Şifrə ən azı 6 simvoldan ibarət olmalıdır.' };
     }
 
     const isValid = await verifyToken(email, otp, token);
@@ -197,11 +222,28 @@ export async function verifyOTPAndRegisterAction(formData: FormData, token: stri
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { 
+        data: { 
+          full_name: fullName,
+          role: 'customer' 
+        } 
+      },
     });
 
     if (error) {
       return { error: String(error.message || 'Supabase qeydiyyat xətası') };
+    }
+
+    if (data.user) {
+      const adminSupabase = createAdminSupabaseClient();
+      await adminSupabase.from('profiles').upsert({
+        id: data.user.id,
+        email: email,
+        full_name: fullName,
+        loyalty_points: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
     }
 
     return { success: true, data: { user: data.user, session: data.session } };
@@ -212,12 +254,16 @@ export async function verifyOTPAndRegisterAction(formData: FormData, token: stri
 
 export async function verifyOTPAndResetPasswordAction(formData: FormData, token: string) {
   try {
-    const email = formData.get('email') as string;
-    const otp = formData.get('otp') as string;
-    const password = formData.get('password') as string;
+    const email = sanitizeInput((formData.get('email') as string) || '').trim().toLowerCase();
+    const otp = sanitizeInput((formData.get('otp') as string) || '').trim();
+    const password = (formData.get('password') as string) || '';
 
     if (!email || !otp || !password) {
       return { error: 'Məlumatlar tam daxil edilməyib.' };
+    }
+
+    if (password.length < 6) {
+      return { error: 'Yeni şifrə ən azı 6 simvoldan ibarət olmalıdır.' };
     }
 
     const isValid = await verifyToken(email, otp, token);
@@ -229,10 +275,10 @@ export async function verifyOTPAndResetPasswordAction(formData: FormData, token:
     const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
     
     if (listError) {
-      return { error: `İstifadəçi siyahısı yüklənərkən xəta: ${listError.message}` };
+      return { error: `İstifadəçi axtarış xətası: ${listError.message}` };
     }
 
-    const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    const user = users.find(u => u.email?.toLowerCase() === email);
     if (!user) {
       return { error: 'Bu e-poçt ünvanı ilə istifadəçi tapılmadı.' };
     }
@@ -245,6 +291,19 @@ export async function verifyOTPAndResetPasswordAction(formData: FormData, token:
       return { error: `Şifrə yenilənərkən xəta: ${updateError.message}` };
     }
 
+    // Log password reset event in audit_logs
+    try {
+      await supabaseAdmin.from('audit_logs').insert([{
+        user_id: user.id,
+        action: 'reset_password_otp',
+        entity_type: 'auth',
+        entity_id: user.id,
+        details: { email: email, timestamp: new Date().toISOString() }
+      }]);
+    } catch (logErr) {
+      console.warn('Audit log write error during password reset:', logErr);
+    }
+
     return { success: true };
   } catch (err: any) {
     return { error: err?.message || 'Şifrə yenilənməsi zamanı xəta baş verdi.' };
@@ -253,13 +312,42 @@ export async function verifyOTPAndResetPasswordAction(formData: FormData, token:
 
 export async function signUp(formData: FormData) {
   try {
+    const email = sanitizeInput((formData.get('email') as string) || '').trim().toLowerCase();
+    const password = (formData.get('password') as string) || '';
+    const fullName = sanitizeInput((formData.get('fullName') as string) || '').trim();
+
+    if (!email || !password) {
+      return { error: 'E-poçt və şifrə mütləqdir.' };
+    }
+    if (password.length < 6) {
+      return { error: 'Şifrə ən azı 6 simvol olmalıdır.' };
+    }
+
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase.auth.signUp({
-      email: formData.get('email') as string,
-      password: formData.get('password') as string,
-      options: { data: { full_name: formData.get('fullName') as string } },
+      email,
+      password,
+      options: { 
+        data: { 
+          full_name: fullName,
+          role: 'customer'
+        } 
+      },
     });
     if (error) return { error: String(error.message || 'Xəta') };
+
+    if (data.user) {
+      const adminSupabase = createAdminSupabaseClient();
+      await adminSupabase.from('profiles').upsert({
+        id: data.user.id,
+        email: email,
+        full_name: fullName,
+        loyalty_points: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    }
+
     return { data: { user: data.user } };
   } catch (err: any) {
     return { error: String(err?.message || 'Server xətası') };
@@ -268,10 +356,17 @@ export async function signUp(formData: FormData) {
 
 export async function signIn(formData: FormData) {
   try {
+    const email = sanitizeInput((formData.get('email') as string) || '').trim().toLowerCase();
+    const password = (formData.get('password') as string) || '';
+
+    if (!email || !password) {
+      return { error: 'E-poçt və şifrə daxil edilməlidir.' };
+    }
+
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: formData.get('email') as string,
-      password: formData.get('password') as string,
+      email,
+      password,
     });
     if (error) return { error: String(error.message || 'Xəta') };
     return { data };
@@ -290,3 +385,4 @@ export async function signOut() {
     return { error: String(err?.message || 'Server xətası') };
   }
 }
+

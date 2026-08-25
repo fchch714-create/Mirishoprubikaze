@@ -4,6 +4,37 @@
 
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import {
+  requireAuth,
+  requireStaff,
+  requireAdmin,
+  getUserRole,
+  validateId,
+  validatePositiveAmount,
+  validatePositiveNumber,
+  validateNonNegativeNumber,
+  validateNonNegativeAmount,
+  validateNonNegativeInt,
+  validateNumberRange,
+  validateEnum,
+  sanitizeInput
+} from '@/lib/security';
+
+export {
+  requireAuth,
+  requireStaff,
+  requireAdmin,
+  getUserRole,
+  validateId,
+  validatePositiveAmount,
+  validatePositiveNumber,
+  validateNonNegativeNumber,
+  validateNonNegativeAmount,
+  validateNonNegativeInt,
+  validateNumberRange,
+  validateEnum,
+  sanitizeInput
+};
 
 // =========================================================================
 // ORDERS MANAGEMENT
@@ -11,11 +42,11 @@ import { revalidatePath } from 'next/cache';
 
 export async function seedMockOrders() {
   if (process.env.NODE_ENV === 'production') {
-    return { success: false, error: 'Order seeding is strictly disabled in production environments.' };
+    return { success: false, error: 'İstehsalat (Production) mühitində test sifarişlərinin yaradılması qəti qadağandır.' };
   }
 
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase, user } = await requireAdmin();
     
     // Check if we already have orders
     const check = await supabase.from('orders').select('id', { count: 'exact', head: true });
@@ -233,7 +264,7 @@ export async function seedMockOrders() {
 
 export async function getOrders() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff(); // Admin və menecerlər üçün mühafizə
     const { data, error } = await supabase
       .from('orders')
       .select('*, order_items(*, variants(*, products(*))))')
@@ -281,11 +312,17 @@ export async function getOrders() {
 
 export async function updateOrderStatus(orderId: string, status: 'pending' | 'shipped' | 'delivered' | 'returned') {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(orderId, 'Sifariş ID');
+    const validStatus = validateEnum(
+      status,
+      ['pending', 'shipped', 'delivered', 'returned'] as const,
+      'Çatdırılma Statusu'
+    );
+    const { supabase, user } = await requireStaff();
     const { data, error } = await supabase
       .from('orders')
-      .update({ shipping_status: status })
-      .eq('id', orderId)
+      .update({ shipping_status: validStatus })
+      .eq('id', validId)
       .select()
       .single();
 
@@ -294,11 +331,12 @@ export async function updateOrderStatus(orderId: string, status: 'pending' | 'sh
     // Write audit log
     try {
       const { createAuditLog } = await import('@/lib/actions/audit');
-      await createAuditLog({
-        action: `Sifariş statusu yeniləndi: ${status}`,
+      await (createAuditLog as any)({
+        action: `Sifariş statusu yeniləndi: ${validStatus}`,
         table_name: 'orders',
-        record_id: orderId,
-        new_values: { shipping_status: status }
+        record_id: validId,
+        user_id: user?.id,
+        new_values: { shipping_status: validStatus }
       });
     } catch (auditErr) {
       console.error('Audit logging failed:', auditErr);
@@ -314,11 +352,17 @@ export async function updateOrderStatus(orderId: string, status: 'pending' | 'sh
 
 export async function updatePaymentStatus(orderId: string, status: 'pending' | 'paid' | 'failed' | 'refunded') {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(orderId, 'Sifariş ID');
+    const validStatus = validateEnum(
+      status,
+      ['pending', 'paid', 'failed', 'refunded'] as const,
+      'Ödəniş Statusu'
+    );
+    const { supabase, user } = await requireAdmin(); // YALNIZ baş admin maliyyə və ödəniş statusunu dəyişə bilər
     const { data, error } = await supabase
       .from('orders')
-      .update({ payment_status: status })
-      .eq('id', orderId)
+      .update({ payment_status: validStatus })
+      .eq('id', validId)
       .select()
       .single();
 
@@ -327,11 +371,12 @@ export async function updatePaymentStatus(orderId: string, status: 'pending' | '
     // Write audit log
     try {
       const { createAuditLog } = await import('@/lib/actions/audit');
-      await createAuditLog({
-        action: `Ödəniş statusu yeniləndi: ${status}`,
+      await (createAuditLog as any)({
+        action: `Ödəniş statusu yeniləndi: ${validStatus}`,
         table_name: 'orders',
-        record_id: orderId,
-        new_values: { payment_status: status }
+        record_id: validId,
+        user_id: user?.id,
+        new_values: { payment_status: validStatus }
       });
     } catch (auditErr) {
       console.error('Audit logging failed:', auditErr);
@@ -352,7 +397,7 @@ export async function updatePaymentStatus(orderId: string, status: 'pending' | '
 
 export async function getWarehouses() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     const { data, error } = await supabase
       .from('warehouses')
       .select('*')
@@ -368,14 +413,31 @@ export async function getWarehouses() {
 
 export async function createWarehouse(name: string, location?: string) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const safeName = sanitizeInput(name || '').trim();
+    if (!safeName || safeName.length < 2) {
+      return { success: false, error: 'Anbar adı ən azı 2 simvol olmalıdır' };
+    }
+    const safeLocation = sanitizeInput(location || '').trim();
+    const { supabase, user } = await requireAdmin(); // Yalnız baş admin yeni anbar yarada bilər
     const { data, error } = await supabase
       .from('warehouses')
-      .insert({ name, location, is_active: true })
+      .insert({ name: safeName, location: safeLocation || null, is_active: true })
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Yeni anbar yaradıldı: ${safeName}`,
+        table_name: 'warehouses',
+        record_id: data.id,
+        user_id: user?.id,
+        new_values: { name: safeName, location: safeLocation }
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('createWarehouse Error:', error.message);
@@ -385,11 +447,12 @@ export async function createWarehouse(name: string, location?: string) {
 
 export async function getInventoryByWarehouse(warehouseId: string) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validWarehouseId = validateId(warehouseId, 'Anbar ID');
+    const { supabase } = await requireStaff();
     const { data, error } = await supabase
       .from('inventory')
       .select('*, variants(*, products(*))')
-      .eq('warehouse_id', warehouseId);
+      .eq('warehouse_id', validWarehouseId);
 
     if (error) throw error;
     return { success: true, data };
@@ -401,18 +464,34 @@ export async function getInventoryByWarehouse(warehouseId: string) {
 
 export async function updateInventoryQuantity(warehouseId: string, variantId: string, quantity: number) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validWarehouseId = validateId(warehouseId, 'Anbar ID');
+    const validVariantId = validateId(variantId, 'Variant ID');
+    const safeQuantity = validateNonNegativeInt(quantity, 'Stok Miqdarı'); // Mənfi sayların qarşısı alınır
+
+    const { supabase, user } = await requireStaff();
     const { data, error } = await supabase
       .from('inventory')
       .upsert({
-        warehouse_id: warehouseId,
-        variant_id: variantId,
-        quantity,
+        warehouse_id: validWarehouseId,
+        variant_id: validVariantId,
+        quantity: safeQuantity,
       }, { onConflict: 'warehouse_id,variant_id' })
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `İnventar yeniləndi (Stok: ${safeQuantity})`,
+        table_name: 'inventory',
+        record_id: `${validWarehouseId}_${validVariantId}`,
+        user_id: user?.id,
+        new_values: { quantity: safeQuantity }
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('updateInventoryQuantity Error:', error.message);
@@ -427,7 +506,7 @@ export async function updateInventoryQuantity(warehouseId: string, variantId: st
 
 export async function getReturns() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     const { data, error } = await supabase
       .from('returns')
       .select('*, return_items(*, variants(*, products(*))))')
@@ -443,15 +522,28 @@ export async function getReturns() {
 
 export async function approveReturn(returnId: string) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(returnId, 'Qaytarma ID');
+    const { supabase, user } = await requireAdmin(); // Yalnız baş admin geri qaytarmanı təsdiqləyə bilər
     const { data, error } = await supabase
       .from('returns')
       .update({ status: 'approved' })
-      .eq('id', returnId)
+      .eq('id', validId)
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: 'Məhsul qaytarması təsdiqləndi',
+        table_name: 'returns',
+        record_id: validId,
+        user_id: user?.id,
+        new_values: { status: 'approved' }
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('approveReturn Error:', error.message);
@@ -465,19 +557,37 @@ export async function createRefund(payload: {
   amount: number;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase, user } = await requireAdmin(); // Yalnız baş admin geri ödəmə yarada bilər
+    if (!payload.payment_id) {
+      throw new Error('Ödəniş identifikatoru (payment_id) tələb olunur');
+    }
+    const safeAmount = validatePositiveAmount(payload.amount, 'Geri qaytarılma məbləği');
+    const returnId = payload.return_id ? validateId(payload.return_id, 'Qaytarma ID') : null;
+
     const { data, error } = await supabase
       .from('refunds')
       .insert({
-        return_id: payload.return_id || null,
-        payment_id: payload.payment_id,
-        amount: payload.amount,
+        return_id: returnId,
+        payment_id: sanitizeInput(payload.payment_id),
+        amount: safeAmount,
         status: 'completed',
       })
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Geri ödəmə (Refund) yaradıldı: ${safeAmount} AZN`,
+        table_name: 'refunds',
+        record_id: data.id,
+        user_id: user?.id,
+        new_values: { payment_id: payload.payment_id, amount: safeAmount }
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('createRefund Error:', error.message);
@@ -492,7 +602,7 @@ export async function createRefund(payload: {
 
 export async function getDashboardStats() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     
     // Fetch total orders, products count, total sales, pending tickets, all products, order_items, categories, product_categories, carts, tickets list, reviews, profiles, low stock, and out of stock
     const [
@@ -1002,16 +1112,18 @@ export async function getDashboardStats() {
   }
 }
 
-// RECORD TRAFFIC VISIT ACTION
+// RECORD TRAFFIC VISIT ACTION (Public Client-Safe Analytics)
 export async function recordTrafficVisit(source: string, isConversion: boolean = false) {
   try {
     const supabase = await createServerSupabaseClient();
-    const cleanSource = (source || 'direct').toLowerCase();
+    const rawSource = sanitizeInput(source || 'direct').toLowerCase();
+    // Allow clean alpha-numeric source tokens (e.g., instagram, google_seo, referral, tiktok, etc.)
+    const cleanSource = rawSource.slice(0, 50).replace(/[^a-z0-9_.-]/g, '');
 
     // 1. Try DB insert into traffic_logs
     const { error } = await supabase.from('traffic_logs').insert([{
-      source: cleanSource,
-      is_conversion: isConversion,
+      source: cleanSource || 'direct',
+      is_conversion: Boolean(isConversion),
       created_at: new Date().toISOString()
     }]);
 
@@ -1020,8 +1132,8 @@ export async function recordTrafficVisit(source: string, isConversion: boolean =
       const { data: existing } = await supabase.from('settings').select('value').eq('key', 'traffic_analytics').single();
       const logs = (existing?.value && Array.isArray(existing.value.logs)) ? existing.value.logs : [];
       logs.push({
-        source: cleanSource,
-        is_conversion: isConversion,
+        source: cleanSource || 'direct',
+        is_conversion: Boolean(isConversion),
         created_at: new Date().toISOString()
       });
       const trimmed = logs.slice(-1000);
@@ -1052,7 +1164,7 @@ export async function sendGlobalNotification(payload: {
   message_ru: string;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireAdmin(); // YALNIZ baş admin qlobal bildiriş göndərə bilər
     
     // Get all users
     const { data: users, error: userError } = await supabase.from('profiles').select('id');
@@ -1223,17 +1335,33 @@ export async function createCMSPage(payload: {
   is_published?: boolean;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase, user } = await requireStaff();
+    const safeSlug = sanitizeInput(payload.slug || payload.title_az).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
     const { data, error } = await supabase
       .from('pages')
       .insert({
         ...payload,
+        slug: safeSlug,
+        title_az: sanitizeInput(payload.title_az),
+        title_en: sanitizeInput(payload.title_en || payload.title_az),
+        title_ru: sanitizeInput(payload.title_ru || payload.title_az),
         is_published: payload.is_published ?? true,
       })
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `CMS səhifəsi yaradıldı: ${safeSlug}`,
+        table_name: 'pages',
+        record_id: data.id,
+        user_id: user?.id,
+      });
+    } catch {}
+
     revalidatePath('/[locale]', 'layout');
     return { success: true, data };
   } catch (error: any) {
@@ -1259,15 +1387,27 @@ export async function updateCMSPage(id: string, payload: Partial<{
   is_published: boolean;
 }>) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(id, 'Səhifə ID');
+    const { supabase, user } = await requireStaff();
     const { data, error } = await supabase
       .from('pages')
       .update(payload)
-      .eq('id', id)
+      .eq('id', validId)
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `CMS səhifəsi yeniləndi: ${validId}`,
+        table_name: 'pages',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     revalidatePath('/[locale]', 'layout');
     return { success: true, data };
   } catch (error: any) {
@@ -1278,9 +1418,21 @@ export async function updateCMSPage(id: string, payload: Partial<{
 
 export async function deleteCMSPage(id: string) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.from('pages').delete().eq('id', id);
+    const validId = validateId(id, 'Səhifə ID');
+    const { supabase, user } = await requireAdmin(); // Səhifə silinməsi yalnız baş admin
+    const { error } = await supabase.from('pages').delete().eq('id', validId);
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `CMS səhifəsi silindi: ${validId}`,
+        table_name: 'pages',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     revalidatePath('/[locale]', 'layout');
     return { success: true };
   } catch (error: any) {
@@ -1325,11 +1477,16 @@ export async function createBanner(payload: {
   is_active?: boolean;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validLocation = validateEnum(payload.location, ['hero', 'promo', 'sidebar', 'footer'] as const, 'Banner Yeri');
+    const { supabase, user } = await requireStaff();
     const { data, error } = await supabase
       .from('banners')
       .insert({
         ...payload,
+        location: validLocation,
+        title_az: payload.title_az ? sanitizeInput(payload.title_az) : null,
+        title_en: payload.title_en ? sanitizeInput(payload.title_en) : null,
+        title_ru: payload.title_ru ? sanitizeInput(payload.title_ru) : null,
         sort_order: payload.sort_order ?? 0,
         is_active: payload.is_active ?? true,
       })
@@ -1337,6 +1494,17 @@ export async function createBanner(payload: {
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Yeni banner yaradıldı: ${validLocation}`,
+        table_name: 'banners',
+        record_id: data.id,
+        user_id: user?.id,
+      });
+    } catch {}
+
     revalidatePath('/[locale]', 'layout');
     return { success: true, data };
   } catch (error: any) {
@@ -1359,15 +1527,27 @@ export async function updateBanner(id: string, payload: Partial<{
   is_active: boolean;
 }>) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(id, 'Banner ID');
+    const { supabase, user } = await requireStaff();
     const { data, error } = await supabase
       .from('banners')
       .update(payload)
-      .eq('id', id)
+      .eq('id', validId)
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Banner yeniləndi: ${validId}`,
+        table_name: 'banners',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     revalidatePath('/[locale]', 'layout');
     return { success: true, data };
   } catch (error: any) {
@@ -1378,9 +1558,21 @@ export async function updateBanner(id: string, payload: Partial<{
 
 export async function deleteBanner(id: string) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.from('banners').delete().eq('id', id);
+    const validId = validateId(id, 'Banner ID');
+    const { supabase, user } = await requireAdmin(); // Banner silinməsi yalnız baş admin
+    const { error } = await supabase.from('banners').delete().eq('id', validId);
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Banner silindi: ${validId}`,
+        table_name: 'banners',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     revalidatePath('/[locale]', 'layout');
     return { success: true };
   } catch (error: any) {
@@ -1422,11 +1614,14 @@ export async function createFAQ(payload: {
   is_active?: boolean;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase, user } = await requireStaff();
     const { data, error } = await supabase
       .from('faqs')
       .insert({
         ...payload,
+        question_az: sanitizeInput(payload.question_az),
+        question_en: sanitizeInput(payload.question_en),
+        question_ru: sanitizeInput(payload.question_ru),
         sort_order: payload.sort_order ?? 0,
         is_active: payload.is_active ?? true,
       })
@@ -1434,6 +1629,17 @@ export async function createFAQ(payload: {
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: 'Yeni FAQ yaradıldı',
+        table_name: 'faqs',
+        record_id: data.id,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('createFAQ Error:', error.message);
@@ -1452,15 +1658,27 @@ export async function updateFAQ(id: string, payload: Partial<{
   is_active: boolean;
 }>) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(id, 'FAQ ID');
+    const { supabase, user } = await requireStaff();
     const { data, error } = await supabase
       .from('faqs')
       .update(payload)
-      .eq('id', id)
+      .eq('id', validId)
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `FAQ yeniləndi: ${validId}`,
+        table_name: 'faqs',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('updateFAQ Error:', error.message);
@@ -1470,9 +1688,21 @@ export async function updateFAQ(id: string, payload: Partial<{
 
 export async function deleteFAQ(id: string) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.from('faqs').delete().eq('id', id);
+    const validId = validateId(id, 'FAQ ID');
+    const { supabase, user } = await requireAdmin(); // FAQ silinməsi yalnız baş admin
+    const { error } = await supabase.from('faqs').delete().eq('id', validId);
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `FAQ silindi: ${validId}`,
+        table_name: 'faqs',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true };
   } catch (error: any) {
     console.error('deleteFAQ Error:', error.message);
@@ -1512,11 +1742,20 @@ export async function createNavigationItem(payload: {
   is_active?: boolean;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validLocation = validateEnum(
+      payload.location,
+      ['header', 'footer_col1', 'footer_col2', 'footer_col3'] as const,
+      'Menyu Yeri'
+    );
+    const { supabase, user } = await requireStaff();
     const { data, error } = await supabase
       .from('navigation_items')
       .insert({
         ...payload,
+        location: validLocation,
+        label_az: sanitizeInput(payload.label_az),
+        label_en: sanitizeInput(payload.label_en || payload.label_az),
+        label_ru: sanitizeInput(payload.label_ru || payload.label_az),
         sort_order: payload.sort_order ?? 0,
         is_active: payload.is_active ?? true,
       })
@@ -1524,6 +1763,17 @@ export async function createNavigationItem(payload: {
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Naviqasiya bəndi yaradıldı: ${payload.label_az}`,
+        table_name: 'navigation_items',
+        record_id: data.id,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('createNavigationItem Error:', error.message);
@@ -1541,15 +1791,27 @@ export async function updateNavigationItem(id: string, payload: Partial<{
   is_active: boolean;
 }>) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(id, 'Naviqasiya ID');
+    const { supabase, user } = await requireStaff();
     const { data, error } = await supabase
       .from('navigation_items')
       .update(payload)
-      .eq('id', id)
+      .eq('id', validId)
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Naviqasiya bəndi yeniləndi: ${validId}`,
+        table_name: 'navigation_items',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('updateNavigationItem Error:', error.message);
@@ -1559,9 +1821,21 @@ export async function updateNavigationItem(id: string, payload: Partial<{
 
 export async function deleteNavigationItem(id: string) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.from('navigation_items').delete().eq('id', id);
+    const validId = validateId(id, 'Naviqasiya ID');
+    const { supabase, user } = await requireAdmin(); // Menyu silinməsi yalnız baş admin
+    const { error } = await supabase.from('navigation_items').delete().eq('id', validId);
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Naviqasiya bəndi silindi: ${validId}`,
+        table_name: 'navigation_items',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true };
   } catch (error: any) {
     console.error('deleteNavigationItem Error:', error.message);
@@ -1602,17 +1876,33 @@ export async function createBlogPost(payload: {
   is_published?: boolean;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase, user } = await requireStaff();
+    const safeSlug = sanitizeInput(payload.slug || payload.title_az).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
     const { data, error } = await supabase
       .from('blog_posts')
       .insert({
         ...payload,
+        slug: safeSlug,
+        title_az: sanitizeInput(payload.title_az),
+        title_en: sanitizeInput(payload.title_en || payload.title_az),
+        title_ru: sanitizeInput(payload.title_ru || payload.title_az),
         is_published: payload.is_published ?? true,
       })
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Bloq yazısı yaradıldı: ${safeSlug}`,
+        table_name: 'blog_posts',
+        record_id: data.id,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('createBlogPost Error:', error.message);
@@ -1632,15 +1922,27 @@ export async function updateBlogPost(id: string, payload: Partial<{
   is_published: boolean;
 }>) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(id, 'Bloq ID');
+    const { supabase, user } = await requireStaff();
     const { data, error } = await supabase
       .from('blog_posts')
       .update(payload)
-      .eq('id', id)
+      .eq('id', validId)
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Bloq yazısı yeniləndi: ${validId}`,
+        table_name: 'blog_posts',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('updateBlogPost Error:', error.message);
@@ -1650,9 +1952,21 @@ export async function updateBlogPost(id: string, payload: Partial<{
 
 export async function deleteBlogPost(id: string) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.from('blog_posts').delete().eq('id', id);
+    const validId = validateId(id, 'Bloq ID');
+    const { supabase, user } = await requireAdmin(); // Bloq silinməsi yalnız baş admin
+    const { error } = await supabase.from('blog_posts').delete().eq('id', validId);
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Bloq yazısı silindi: ${validId}`,
+        table_name: 'blog_posts',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true };
   } catch (error: any) {
     console.error('deleteBlogPost Error:', error.message);
@@ -1694,16 +2008,17 @@ export async function createCollection(payload: {
   product_ids?: string[];
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase, user } = await requireStaff();
     const { name_az, name_en, name_ru, slug, description_az, description_en, description_ru, image_url, is_active, product_ids } = payload;
+    const safeSlug = sanitizeInput(slug || name_az).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
     
     const { data: collection, error: collError } = await supabase
       .from('collections')
       .insert({
-        name_az,
-        name_en,
-        name_ru,
-        slug,
+        name_az: sanitizeInput(name_az),
+        name_en: sanitizeInput(name_en || name_az),
+        name_ru: sanitizeInput(name_ru || name_az),
+        slug: safeSlug,
         description_az,
         description_en,
         description_ru,
@@ -1726,6 +2041,16 @@ export async function createCollection(payload: {
       if (mapError) throw mapError;
     }
 
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Kolleksiya yaradıldı: ${safeSlug}`,
+        table_name: 'collections',
+        record_id: collection.id,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true, data: collection };
   } catch (error: any) {
     console.error('createCollection Error:', error.message);
@@ -1746,24 +2071,25 @@ export async function updateCollection(id: string, payload: Partial<{
   product_ids: string[];
 }>) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(id, 'Kolleksiya ID');
+    const { supabase, user } = await requireStaff();
     const { product_ids, ...details } = payload;
 
     if (Object.keys(details).length > 0) {
       const { error: collError } = await supabase
         .from('collections')
         .update(details)
-        .eq('id', id);
+        .eq('id', validId);
       if (collError) throw collError;
     }
 
     if (product_ids !== undefined) {
       // Delete existing
-      await supabase.from('collection_products').delete().eq('collection_id', id);
+      await supabase.from('collection_products').delete().eq('collection_id', validId);
       
       if (product_ids.length > 0) {
         const mapping = product_ids.map(pid => ({
-          collection_id: id,
+          collection_id: validId,
           product_id: pid
         }));
         const { error: mapError } = await supabase
@@ -1772,6 +2098,16 @@ export async function updateCollection(id: string, payload: Partial<{
         if (mapError) throw mapError;
       }
     }
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Kolleksiya yeniləndi: ${validId}`,
+        table_name: 'collections',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
 
     return { success: true };
   } catch (error: any) {
@@ -1782,9 +2118,21 @@ export async function updateCollection(id: string, payload: Partial<{
 
 export async function deleteCollection(id: string) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.from('collections').delete().eq('id', id);
+    const validId = validateId(id, 'Kolleksiya ID');
+    const { supabase, user } = await requireAdmin(); // Kolleksiya silinməsi yalnız baş admin
+    const { error } = await supabase.from('collections').delete().eq('id', validId);
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Kolleksiya silindi: ${validId}`,
+        table_name: 'collections',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true };
   } catch (error: any) {
     console.error('deleteCollection Error:', error.message);
@@ -1804,14 +2152,34 @@ export async function registerUploadedFile(payload: {
   mime_type: string;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase, user } = await requireStaff();
+    const safeName = sanitizeInput(payload.name);
+    const safeMime = sanitizeInput(payload.mime_type);
+    const safeSize = validateNonNegativeInt(payload.file_size, 'Fayl ölçüsü');
+
     const { data, error } = await supabase
       .from('files')
-      .insert(payload)
+      .insert({
+        name: safeName,
+        file_url: payload.file_url,
+        file_size: safeSize,
+        mime_type: safeMime,
+      })
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Fayl yükləndi: ${safeName}`,
+        table_name: 'files',
+        record_id: data.id,
+        user_id: user?.id,
+      });
+    } catch {}
+
     return { success: true, data };
   } catch (error: any) {
     console.error('registerUploadedFile Error:', error.message);
@@ -1821,13 +2189,14 @@ export async function registerUploadedFile(payload: {
 
 export async function getOrderDetail(orderId: string) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(orderId, 'Sifariş ID');
+    const { supabase } = await requireStaff();
     
     // Fetch order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('*, order_items(*, variants(*, products(*))))')
-      .eq('id', orderId)
+      .eq('id', validId)
       .maybeSingle();
 
     if (orderError) throw orderError;
@@ -1837,7 +2206,7 @@ export async function getOrderDetail(orderId: string) {
     const { data: shipment } = await supabase
       .from('shipments')
       .select('*')
-      .eq('order_id', orderId)
+      .eq('order_id', validId)
       .maybeSingle();
 
     // Map database enterprise schema columns back to expected frontend fields
@@ -1876,7 +2245,7 @@ export async function getOrderDetail(orderId: string) {
     const { data: logs } = await supabase
       .from('audit_logs')
       .select('*')
-      .eq('record_id', orderId)
+      .eq('record_id', validId)
       .eq('table_name', 'orders')
       .order('created_at', { ascending: false });
 
@@ -1889,15 +2258,18 @@ export async function getOrderDetail(orderId: string) {
 
 export async function updateOrderTracking(orderId: string, trackingNumber: string, carrier?: string) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(orderId, 'Sifariş ID');
+    const safeTracking = sanitizeInput(trackingNumber || '');
+    const safeCarrier = sanitizeInput(carrier || 'post_delivery');
+    const { supabase, user } = await requireStaff();
     
     // Upsert into shipments
     const { error } = await supabase
       .from('shipments')
       .upsert({
-        order_id: orderId,
-        tracking_number: trackingNumber || null,
-        carrier: carrier || 'post_delivery',
+        order_id: validId,
+        tracking_number: safeTracking || null,
+        carrier: safeCarrier,
         status: 'shipped'
       }, { onConflict: 'order_id' });
 
@@ -1906,11 +2278,12 @@ export async function updateOrderTracking(orderId: string, trackingNumber: strin
     // Also write an audit log
     try {
       const { createAuditLog } = await import('@/lib/actions/audit');
-      await createAuditLog({
-        action: `İzləmə nömrəsi yeniləndi: ${trackingNumber}`,
+      await (createAuditLog as any)({
+        action: `İzləmə nömrəsi yeniləndi: ${safeTracking}`,
         table_name: 'orders',
-        record_id: orderId,
-        new_values: { tracking_number: trackingNumber }
+        record_id: validId,
+        user_id: user?.id,
+        new_values: { tracking_number: safeTracking, carrier: safeCarrier }
       });
     } catch (auditErr) {
       console.error('Audit logging failed:', auditErr);
@@ -1926,14 +2299,18 @@ export async function updateOrderTracking(orderId: string, trackingNumber: strin
 
 export async function addOrderInternalNote(orderId: string, note: string) {
   try {
-    if (!note.trim()) return { success: false, error: 'Qeyd boş ola bilməz' };
+    const validId = validateId(orderId, 'Sifariş ID');
+    const safeNote = sanitizeInput(note || '').trim();
+    if (!safeNote) return { success: false, error: 'Qeyd boş ola bilməz' };
     
+    const { user } = await requireStaff();
     const { createAuditLog } = await import('@/lib/actions/audit');
-    const res = await createAuditLog({
+    const res = await (createAuditLog as any)({
       action: 'Internal Note Added',
       table_name: 'orders',
-      record_id: orderId,
-      new_values: { note: note }
+      record_id: validId,
+      user_id: user?.id,
+      new_values: { note: safeNote }
     });
 
     if (!res.success) throw new Error(res.error);
@@ -2096,30 +2473,23 @@ function mapVariantsPayload(variants: any[], basePrice: number, productId?: stri
 
 export async function createProduct(payload: any) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      throw new Error('İcazəsiz giriş (Unauthorized)');
-    }
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
-      throw new Error('Bu əməliyyat üçün admin/manager icazəsi lazımdır');
-    }
+    const { supabase, user } = await requireStaff();
 
     const adminSupabase = createAdminSupabaseClient();
     const rawSlug = payload.slug || payload.title_az || payload.title_en || 'product';
     const finalSlug = await resolveUniqueSlug(supabase, rawSlug);
     const safeGallery = formatGalleryImages(payload.gallery_images);
-    const basePrice = Number(payload.price_azn || payload.price || 0);
+    const basePrice = validatePositiveNumber(Number(payload.price_azn || payload.price || 0), 'Məhsul Qiyməti');
+    const safeStock = validateNonNegativeInt(payload.stock_quantity ?? 0, 'Stok Miqdarı');
 
     const categoryId = payload.category_ids && payload.category_ids.length > 0 
       ? payload.category_ids[0] 
       : (payload.category_id || null);
 
     const insertObj: any = {
-      title_az: payload.title_az,
-      title_en: payload.title_en,
-      title_ru: payload.title_ru,
+      title_az: sanitizeInput(payload.title_az),
+      title_en: sanitizeInput(payload.title_en || payload.title_az),
+      title_ru: sanitizeInput(payload.title_ru || payload.title_az),
       description_az: payload.description_az,
       description_en: payload.description_en,
       description_ru: payload.description_ru,
@@ -2129,14 +2499,14 @@ export async function createProduct(payload: any) {
       group_slug: payload.group_slug || null,
       variant_name: payload.variant_name || null,
       price_azn: basePrice,
-      compare_at_price_azn: payload.compare_at_price_azn,
-      brand_id: payload.brand_id,
-      category_id: categoryId,
+      compare_at_price_azn: payload.compare_at_price_azn ? Number(payload.compare_at_price_azn) : null,
+      brand_id: payload.brand_id ? validateId(payload.brand_id, 'Brend ID') : null,
+      category_id: categoryId ? validateId(categoryId, 'Kateqoriya ID') : null,
       is_active: payload.is_active ?? true,
       status: payload.status === 'active' ? 'publish' : (payload.status || 'publish'),
       image_url: payload.image_url,
       video_url: payload.video_url,
-      stock_quantity: payload.stock_quantity ?? 0,
+      stock_quantity: safeStock,
       is_featured: payload.is_featured ?? false,
       product_type: payload.product_type ?? 'speedcube',
       tags: payload.tags ?? [],
@@ -2199,6 +2569,16 @@ export async function createProduct(payload: any) {
       }
     }
 
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Məhsul yaradıldı: ${finalSlug}`,
+        table_name: 'products',
+        record_id: product.id,
+        user_id: user?.id,
+      });
+    } catch {}
+
     revalidatePath('/[locale]', 'layout');
     return { success: true, data: product };
   } catch (error: any) {
@@ -2209,15 +2589,8 @@ export async function createProduct(payload: any) {
 
 export async function updateProduct(id: string, payload: any) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      throw new Error('İcazəsiz giriş (Unauthorized)');
-    }
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
-      throw new Error('Bu əməliyyat üçün admin/manager icazəsi lazımdır');
-    }
+    const validId = validateId(id, 'Məhsul ID');
+    const { supabase, user } = await requireStaff();
 
     const adminSupabase = createAdminSupabaseClient();
     const {
@@ -2245,7 +2618,7 @@ export async function updateProduct(id: string, payload: any) {
     if (directFields.slug || directFields.title_az || directFields.title_en) {
       const rawSlug = directFields.slug || directFields.title_az || directFields.title_en || '';
       if (rawSlug) {
-        directFields.slug = await resolveUniqueSlug(supabase, rawSlug, id);
+        directFields.slug = await resolveUniqueSlug(supabase, rawSlug, validId);
       }
     }
 
@@ -2273,13 +2646,13 @@ export async function updateProduct(id: string, payload: any) {
     let { data: product, error: prodError } = await supabase
       .from('products')
       .update(directFields)
-      .eq('id', id)
+      .eq('id', validId)
       .select()
       .single();
 
     if (prodError && prodError.message?.includes('category_id')) {
       delete directFields.category_id;
-      const res = await supabase.from('products').update(directFields).eq('id', id).select().single();
+      const res = await supabase.from('products').update(directFields).eq('id', validId).select().single();
       product = res.data;
       prodError = res.error;
     }
@@ -2287,10 +2660,10 @@ export async function updateProduct(id: string, payload: any) {
     if (prodError) throw prodError;
 
     if (category_ids !== undefined) {
-      await supabase.from('product_categories').delete().eq('product_id', id);
+      await supabase.from('product_categories').delete().eq('product_id', validId);
       if (category_ids.length > 0) {
         const mappings = category_ids.map((catId: string) => ({
-          product_id: id,
+          product_id: validId,
           category_id: catId,
         }));
         const { error: catError } = await supabase.from('product_categories').insert(mappings);
@@ -2299,16 +2672,16 @@ export async function updateProduct(id: string, payload: any) {
     }
 
     if (variants !== undefined && Array.isArray(variants)) {
-      const { error: vDelErr } = await adminSupabase.from('variants').delete().eq('product_id', id);
+      const { error: vDelErr } = await adminSupabase.from('variants').delete().eq('product_id', validId);
       if (vDelErr) console.error('VARIANTS DELETE ERROR (updateProduct):', vDelErr);
       try {
-        const { error: pvDelErr } = await adminSupabase.from('product_variants').delete().eq('product_id', id);
+        const { error: pvDelErr } = await adminSupabase.from('product_variants').delete().eq('product_id', validId);
         if (pvDelErr) console.error('PRODUCT_VARIANTS DELETE ERROR (updateProduct):', pvDelErr);
       } catch (e: any) {
         console.error('PRODUCT_VARIANTS DELETE EXCEPTION (updateProduct):', e?.message || e);
       }
 
-      const variantsToInsert = mapVariantsPayload(variants, basePrice, id, product.slug);
+      const variantsToInsert = mapVariantsPayload(variants, basePrice, validId, product.slug);
       if (variantsToInsert.length > 0) {
         const { error: vInsErr } = await adminSupabase.from('variants').insert(variantsToInsert);
         if (vInsErr) console.error('VARIANTS INSERT ERROR (updateProduct):', vInsErr);
@@ -2320,6 +2693,16 @@ export async function updateProduct(id: string, payload: any) {
         }
       }
     }
+
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Məhsul yeniləndi: ${validId}`,
+        table_name: 'products',
+        record_id: validId,
+        user_id: user?.id,
+      });
+    } catch {}
 
     revalidatePath('/[locale]', 'layout');
     return { success: true, data: product };
@@ -2343,17 +2726,20 @@ export async function upsertProduct(payload: any, productId?: string) {
 
 export async function deleteProduct(id: string) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const validId = validateId(id, 'Məhsul ID');
+    const { supabase, user } = await requireAdmin(); // Məhsulun silinməsi YALNIZ baş admin səlahiyyətindədir
+    
     try {
       const { createAuditLog } = await import('@/lib/actions/audit');
-      await createAuditLog({
+      await (createAuditLog as any)({
         action: 'Məhsul silindi',
         table_name: 'products',
-        record_id: id,
+        record_id: validId,
+        user_id: user?.id,
       });
     } catch {}
 
-    const { error } = await supabase.from('products').delete().eq('id', id);
+    const { error } = await supabase.from('products').delete().eq('id', validId);
     if (error) throw error;
     revalidatePath('/[locale]', 'layout');
     return { success: true };
@@ -2414,12 +2800,7 @@ export async function bulkImportCategoriesAction(categories: any[]): Promise<Bul
   };
 
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      result.errors.push('İcazəsiz giriş (Unauthorized)');
-      return result;
-    }
+    const { supabase } = await requireStaff(); // Yalnız admin və menecerlər kateqoriya idxal edə bilər
 
     if (!Array.isArray(categories) || categories.length === 0) {
       result.errors.push('Daxil edilən məlumat massiv (array) deyil və ya boşdur.');
@@ -2428,7 +2809,7 @@ export async function bulkImportCategoriesAction(categories: any[]): Promise<Bul
 
     for (let i = 0; i < categories.length; i++) {
       const item = categories[i];
-      const nameAz = (item.name_az || item.name || '').toString().trim();
+      const nameAz = sanitizeInput(item.name_az || item.name || '').trim();
 
       if (!nameAz) {
         result.skipped++;
@@ -2453,8 +2834,8 @@ export async function bulkImportCategoriesAction(categories: any[]): Promise<Bul
         counter++;
       }
 
-      const nameEn = (item.name_en || nameAz).trim();
-      const nameRu = (item.name_ru || nameAz).trim();
+      const nameEn = sanitizeInput(item.name_en || nameAz).trim();
+      const nameRu = sanitizeInput(item.name_ru || nameAz).trim();
       const slugEn = item.slug_en ? toAzSlug(item.slug_en) : finalSlugAz;
       const slugRu = item.slug_ru ? toAzSlug(item.slug_ru) : finalSlugAz;
 
@@ -2498,12 +2879,7 @@ export async function bulkImportBrandsAction(brands: any[]): Promise<BulkImportR
   };
 
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      result.errors.push('İcazəsiz giriş (Unauthorized)');
-      return result;
-    }
+    const { supabase } = await requireStaff(); // Yalnız admin və menecerlər brend idxal edə bilər
 
     if (!Array.isArray(brands) || brands.length === 0) {
       result.errors.push('Daxil edilən məlumat massiv (array) deyil və ya boşdur.');
@@ -2512,7 +2888,7 @@ export async function bulkImportBrandsAction(brands: any[]): Promise<BulkImportR
 
     for (let i = 0; i < brands.length; i++) {
       const item = brands[i];
-      const name = (item.name || item.title || '').toString().trim();
+      const name = sanitizeInput(item.name || item.title || '').trim();
 
       if (!name) {
         result.skipped++;
@@ -2573,17 +2949,7 @@ export async function bulkImportProductsAction(products: any[]): Promise<BulkImp
   };
 
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      result.errors.push('İcazəsiz giriş (Unauthorized)');
-      return result;
-    }
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
-      result.errors.push('Bu əməliyyat üçün admin/manager icazəsi lazımdır');
-      return result;
-    }
+    const { supabase, user } = await requireStaff();
 
     const adminSupabase = createAdminSupabaseClient();
 

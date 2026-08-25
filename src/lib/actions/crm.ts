@@ -1,6 +1,12 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminSupabaseClient } from '@/lib/supabase/server';
+import { 
+  requireStaff, 
+  sanitizeInput, 
+  validateId, 
+  validateEnum 
+} from '@/lib/security';
 import { revalidatePath } from 'next/cache';
 
 export interface CRMOrder {
@@ -23,13 +29,17 @@ export interface CRMCustomer {
   ordersList: CRMOrder[];
 }
 
-// 1. Get unified customers CRM list
+/**
+ * 1. Get unified customers CRM list
+ * BFLA / PII Protection: Requires Staff (Admin / Manager) access.
+ */
 export async function getCustomersCRM() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const authUser = await requireStaff();
+    const adminSupabase = createAdminSupabaseClient();
 
     // Fetch all registered user profiles
-    const { data: profiles, error: pError } = await supabase
+    const { data: profiles, error: pError } = await adminSupabase
       .from('profiles')
       .select('id, email, full_name, phone, created_at, customer_type, crm_segment, crm_notes')
       .order('created_at', { ascending: false });
@@ -37,7 +47,7 @@ export async function getCustomersCRM() {
     if (pError) throw pError;
 
     // Fetch all orders
-    const { data: orders, error: oError } = await supabase
+    const { data: orders, error: oError } = await adminSupabase
       .from('orders')
       .select('id, user_id, email, phone, full_name, total, created_at')
       .order('created_at', { ascending: false });
@@ -57,8 +67,8 @@ export async function getCustomersCRM() {
           name: p.full_name || 'Qeydiyyatlı İstifadəçi',
           email: p.email,
           phone: p.phone || '',
-          type: (p.customer_type as any) || 'B2C',
-          segment: (p.crm_segment as any) || 'Regular',
+          type: (p.customer_type as 'B2C' | 'B2B') || 'B2C',
+          segment: (p.crm_segment as 'New' | 'Regular' | 'VIP' | 'Wholesale' | 'Churn Risk') || 'Regular',
           notes: p.crm_notes || '',
           ordersCount: 0,
           ltv: 0,
@@ -76,8 +86,9 @@ export async function getCustomersCRM() {
 
         if (!customerMap.has(key)) {
           // Unregistered/Guest buyer CRM entry
+          const guestPhoneClean = o.phone ? o.phone.replace(/[^0-9]/g, '') : '';
           customerMap.set(key, {
-            id: `GUEST-${o.phone.replace(/[^0-9]/g, '') || o.id.slice(0, 8)}`,
+            id: `GUEST-${guestPhoneClean || o.id.slice(0, 8)}`,
             name: o.full_name || 'Qonaq Alıcı',
             email: o.email,
             phone: o.phone || '',
@@ -93,18 +104,16 @@ export async function getCustomersCRM() {
 
         const cust = customerMap.get(key)!;
         cust.ordersCount += 1;
-        cust.ltv += Number(o.total || 0);
+        cust.ltv += Math.max(0, Number(o.total || 0));
         cust.ordersList.push({
           id: o.id,
-          total: Number(o.total),
+          total: Math.max(0, Number(o.total || 0)),
           created_at: o.created_at
         });
 
         // Dynamic CRM segmentation if not manually set before
         if (cust.segment === 'Regular' || !cust.segment) {
-          if (cust.ltv >= 100) {
-            cust.segment = 'VIP';
-          } else if (cust.ordersCount >= 3) {
+          if (cust.ltv >= 100 || cust.ordersCount >= 3) {
             cust.segment = 'VIP';
           } else if (cust.ordersCount === 1) {
             cust.segment = 'New';
@@ -115,18 +124,26 @@ export async function getCustomersCRM() {
 
     return { success: true, customers: Array.from(customerMap.values()) };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('getCustomersCRM Error:', error.message);
+    return { success: false, error: error.message || 'Müştəri CRM məlumatları yüklənərkən xəta baş verdi' };
   }
 }
 
-// 2. Update CRM values (notes, segment, type) for a specific user profile
+/**
+ * 2. Update CRM values (notes, segment, type) for a specific user profile
+ * Security: Requires Staff access, validates enum values, sanitizes notes, and records audit logs.
+ */
 export async function updateCustomerCRM(id: string, payload: {
   customer_type?: 'B2C' | 'B2B';
   crm_segment?: 'New' | 'Regular' | 'VIP' | 'Wholesale' | 'Churn Risk';
   crm_notes?: string;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const authUser = await requireStaff();
+
+    if (!id || typeof id !== 'string') {
+      return { success: false, error: 'Müştəri ID mütləqdir.' };
+    }
 
     if (id.startsWith('GUEST-')) {
       return { 
@@ -135,22 +152,56 @@ export async function updateCustomerCRM(id: string, payload: {
       };
     }
 
-    const { data, error } = await supabase
+    const cleanId = validateId(id, 'Müştəri ID');
+    const updateData: Record<string, any> = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (payload.customer_type !== undefined) {
+      updateData.customer_type = validateEnum(payload.customer_type, ['B2C', 'B2B'], 'Müştəri Növü');
+    }
+
+    if (payload.crm_segment !== undefined) {
+      updateData.crm_segment = validateEnum(
+        payload.crm_segment, 
+        ['New', 'Regular', 'VIP', 'Wholesale', 'Churn Risk'], 
+        'CRM Seqmenti'
+      );
+    }
+
+    if (payload.crm_notes !== undefined) {
+      updateData.crm_notes = sanitizeInput(payload.crm_notes).trim();
+    }
+
+    const adminSupabase = createAdminSupabaseClient();
+    const { data, error } = await adminSupabase
       .from('profiles')
-      .update({
-        customer_type: payload.customer_type,
-        crm_segment: payload.crm_segment,
-        crm_notes: payload.crm_notes,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
+      .update(updateData)
+      .eq('id', cleanId)
       .select()
       .single();
 
     if (error) throw error;
-    revalidatePath('/admin/customers');
+
+    // Record Audit Log
+    try {
+      await adminSupabase.from('audit_logs').insert([{
+        user_id: authUser.id,
+        action: 'update_crm_profile',
+        entity_type: 'customer_crm',
+        entity_id: cleanId,
+        details: { updated_fields: Object.keys(updateData), values: updateData }
+      }]);
+    } catch (auditErr) {
+      console.warn('Audit logging warning in updateCustomerCRM:', auditErr);
+    }
+
+    revalidatePath('/[locale]/admin/customers', 'page');
+    revalidatePath('/[locale]/admin/customers/[id]', 'page');
+    
     return { success: true, profile: data };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('updateCustomerCRM Error:', error.message);
+    return { success: false, error: error.message || 'CRM məlumatları yenilənərkən xəta baş verdi' };
   }
 }

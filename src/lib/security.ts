@@ -1,6 +1,159 @@
 // src/lib/security.ts
 
 import { supabase } from '@/lib/supabase/client';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+
+/**
+ * Validates whether the user is authenticated and retrieves their profile role.
+ */
+export async function requireAuth(customSupabase?: any) {
+  const client = customSupabase || (await createServerSupabaseClient());
+  const { data: { user }, error: authError } = await client.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('İcazəsiz giriş: İstifadəçi autentifikasiyadan keçməyib (401 Unauthorized)');
+  }
+
+  const { data: profile, error: profileError } = await client
+    .from('profiles')
+    .select('id, role, full_name, email, phone')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !profile) {
+    throw new Error('İstifadəçi profili tapılmadı və ya sistemə çıxış məhdudlaşdırılıb');
+  }
+
+  return { 
+    supabase: client, 
+    user, 
+    profile, 
+    id: user.id, 
+    role: profile.role, 
+    email: user.email 
+  };
+}
+
+/**
+ * Retrieves the user role by User ID.
+ */
+export async function getUserRole(userId?: string): Promise<string | null> {
+  try {
+    if (!userId) {
+      const { profile } = await requireAuth();
+      return profile?.role || null;
+    }
+    const client = await createServerSupabaseClient();
+    const { data, error } = await client
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+    return data.role;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validates that the user has staff privileges ('admin' OR 'manager').
+ * Used for standard operational workflows: viewing orders, tracking updates, inventory edits, catalog updates.
+ */
+export async function requireStaff(customSupabase?: any) {
+  const { supabase: client, user, profile } = await requireAuth(customSupabase);
+
+  if (profile.role !== 'admin' && profile.role !== 'manager') {
+    throw new Error('İcazəsiz əməliyyat: Bu hərəkət üçün admin və ya menecer icazəsi tələb olunur (403 Forbidden)');
+  }
+
+  return { supabase: client, user, profile };
+}
+
+/**
+ * Validates that the user has strict super-admin privileges (ONLY 'admin').
+ * Used for financial operations, refunds, payment status overrides, warehouse creation, and destructive bulk actions.
+ */
+export async function requireAdmin(customSupabase?: any) {
+  const { supabase: client, user, profile } = await requireAuth(customSupabase);
+
+  if (profile.role !== 'admin') {
+    throw new Error('İcazəsiz əməliyyat: Bu hərəkət yalnız baş admin tərəfindən icra edilə bilər (403 Forbidden)');
+  }
+
+  return { supabase: client, user, profile };
+}
+
+/**
+ * Validates string ID parameter.
+ */
+export function validateId(id: any, fieldName: string = 'ID'): string {
+  if (!id || typeof id !== 'string' || id.trim().length === 0) {
+    throw new Error(`Yanlış və ya boş parametr: ${fieldName}`);
+  }
+  return id.trim();
+}
+
+/**
+ * Validates positive monetary amount or number (> 0).
+ */
+export function validatePositiveAmount(amount: any, fieldName: string = 'Məbləğ'): number {
+  const num = typeof amount === 'number' ? amount : parseFloat(String(amount));
+  if (isNaN(num) || !Number.isFinite(num) || num <= 0) {
+    throw new Error(`${fieldName} müsbət və düzgün ədəd olmalıdır.`);
+  }
+  return num;
+}
+
+export const validatePositiveNumber = validatePositiveAmount;
+
+/**
+ * Validates non-negative monetary amount or number (>= 0).
+ */
+export function validateNonNegativeNumber(amount: any, fieldName: string = 'Məbləğ'): number {
+  const num = typeof amount === 'number' ? amount : parseFloat(String(amount));
+  if (isNaN(num) || !Number.isFinite(num) || num < 0) {
+    throw new Error(`${fieldName} mənfi olmayan düzgün ədəd olmalıdır.`);
+  }
+  return num;
+}
+
+export const validateNonNegativeAmount = validateNonNegativeNumber;
+
+/**
+ * Validates that a number falls within an inclusive range [min, max].
+ */
+export function validateNumberRange(num: any, min: number, max: number, fieldName: string = 'Dəyər'): number {
+  const parsed = typeof num === 'number' ? num : parseFloat(String(num));
+  if (isNaN(parsed) || !Number.isFinite(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${fieldName} ${min} ilə ${max} arasında olmalıdır.`);
+  }
+  return parsed;
+}
+
+/**
+ * Validates non-negative integer for quantities / stock (>= 0).
+ */
+export function validateNonNegativeInt(num: any, fieldName: string = 'Miqdar'): number {
+  const parsed = typeof num === 'number' ? num : parseInt(String(num), 10);
+  if (isNaN(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${fieldName} mənfi olmayan tam ədəd olmalıdır.`);
+  }
+  return parsed;
+}
+
+/**
+ * Validates that a string value belongs to an allowed enum list.
+ */
+export function validateEnum<T extends string>(value: any, allowedValues: readonly T[], fieldName: string = 'Status'): T {
+  if (!value || !allowedValues.includes(value as T)) {
+    throw new Error(`Yanlış ${fieldName} dəyəri: "${value}". İcazə verilən dəyərlər: ${allowedValues.join(', ')}`);
+  }
+  return value as T;
+}
 
 /**
  * Sanitizes input strings to prevent XSS attacks by escaping HTML characters

@@ -1,6 +1,12 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server';
+import { 
+  requireStaff, 
+  validateId, 
+  sanitizeInput, 
+  validateNonNegativeInt 
+} from '@/lib/security';
 import { revalidatePath } from 'next/cache';
 
 export interface LoyaltyUser {
@@ -38,20 +44,24 @@ export interface ReferralRecordItem {
   created_at: string;
 }
 
-// 1. Get loyalty program participants
+/**
+ * 1. Get loyalty program participants
+ * BFLA Protection: Requires Staff access.
+ */
 export async function getLoyaltyParticipants() {
   try {
-    const supabase = await createServerSupabaseClient();
+    await requireStaff();
+    const adminSupabase = createAdminSupabaseClient();
 
     // Get profiles
-    const { data: profiles, error: pError } = await supabase
+    const { data: profiles, error: pError } = await adminSupabase
       .from('profiles')
       .select('id, full_name, email');
 
     if (pError) throw pError;
 
     // Get loyalty records
-    const { data: loyalty, error: lError } = await supabase
+    const { data: loyalty, error: lError } = await adminSupabase
       .from('loyalty_points')
       .select('*');
 
@@ -68,7 +78,7 @@ export async function getLoyaltyParticipants() {
 
     const participants: LoyaltyUser[] = (profiles || []).map(p => {
       const balance = loyaltyMap.get(p.id) || 0;
-      const updated_at = loyaltyTimeMap.get(p.id) || p.created_at || new Date().toISOString();
+      const updated_at = loyaltyTimeMap.get(p.id) || new Date().toISOString();
 
       let tier: LoyaltyUser['tier'] = 'Bürünc';
       if (balance >= 1000) tier = 'Platin';
@@ -87,53 +97,82 @@ export async function getLoyaltyParticipants() {
 
     return { success: true, participants };
   } catch (error: any) {
-    return { success: false, error: error.message, participants: [] };
+    console.error('getLoyaltyParticipants Error:', error.message);
+    return { success: false, error: error.message || 'Məlumat yüklənmədi', participants: [] };
   }
 }
 
-// 2. Add or update manual loyalty points for user
+/**
+ * 2. Add or update manual loyalty points for user
+ * Security: Requires Staff access and records audit log.
+ */
 export async function updateLoyaltyPoints(userId: string, points: number) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const authUser = await requireStaff();
+    const cleanUserId = validateId(userId, 'İstifadəçi ID');
+    const validPoints = validateNonNegativeInt(points, 'Loyallıq balı');
+
+    const adminSupabase = createAdminSupabaseClient();
 
     // Check if record exists
-    const { data: existing } = await supabase
+    const { data: existing } = await adminSupabase
       .from('loyalty_points')
       .select('balance')
-      .eq('user_id', userId)
+      .eq('user_id', cleanUserId)
       .maybeSingle();
 
     let res;
     if (existing) {
-      res = await supabase
+      res = await adminSupabase
         .from('loyalty_points')
         .update({
-          balance: Math.max(0, points),
+          balance: validPoints,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', userId);
+        .eq('user_id', cleanUserId);
     } else {
-      res = await supabase
+      res = await adminSupabase
         .from('loyalty_points')
         .insert([{
-          user_id: userId,
-          balance: Math.max(0, points)
+          user_id: cleanUserId,
+          balance: validPoints,
+          updated_at: new Date().toISOString()
         }]);
     }
 
     if (res.error) throw res.error;
-    revalidatePath('/admin/marketing/loyalty');
+
+    // Record audit log
+    try {
+      await adminSupabase.from('audit_logs').insert([{
+        user_id: authUser.id,
+        action: 'update_loyalty_points',
+        entity_type: 'loyalty',
+        entity_id: cleanUserId,
+        details: { new_balance: validPoints, previous_balance: existing?.balance || 0 }
+      }]);
+    } catch (auditErr) {
+      console.warn('Audit logging warning:', auditErr);
+    }
+
+    revalidatePath('/[locale]/admin/marketing/loyalty', 'page');
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('updateLoyaltyPoints Error:', error.message);
+    return { success: false, error: error.message || 'Bal yenilənmədi' };
   }
 }
 
-// 3. Get all newsletter subscribers
+/**
+ * 3. Get all newsletter subscribers
+ * BFLA Protection: Requires Staff access.
+ */
 export async function getNewsletterSubscribers() {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase
+    await requireStaff();
+    const adminSupabase = createAdminSupabaseClient();
+
+    const { data, error } = await adminSupabase
       .from('newsletter_subscribers')
       .select('*')
       .order('created_at', { ascending: false });
@@ -141,18 +180,26 @@ export async function getNewsletterSubscribers() {
     if (error) throw error;
     return { success: true, subscribers: (data as NewsletterSub[]) || [] };
   } catch (error: any) {
-    return { success: false, error: error.message, subscribers: [] };
+    console.error('getNewsletterSubscribers Error:', error.message);
+    return { success: false, error: error.message || 'Abunəçilər yüklənmədi', subscribers: [] };
   }
 }
 
-// 4. Add newsletter subscriber (from public pages/footer)
+/**
+ * 4. Add newsletter subscriber (from public storefront footer/popups)
+ * Sanitizes input and validates email format.
+ */
 export async function subscribeToNewsletter(email: string) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = sanitizeInput(email || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@') || cleanEmail.length > 254) {
+      return { success: false, error: 'Düzgün e-poçt ünvanı daxil edilməlidir.' };
+    }
+
+    const adminSupabase = createAdminSupabaseClient();
 
     // Check if email already exists
-    const { data: existing } = await supabase
+    const { data: existing } = await adminSupabase
       .from('newsletter_subscribers')
       .select('id')
       .eq('email', cleanEmail)
@@ -162,9 +209,13 @@ export async function subscribeToNewsletter(email: string) {
       return { success: true, alreadySubscribed: true };
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('newsletter_subscribers')
-      .insert([{ email: cleanEmail, is_active: true }])
+      .insert([{ 
+        email: cleanEmail, 
+        is_active: true,
+        created_at: new Date().toISOString()
+      }])
       .select()
       .single();
 
@@ -174,26 +225,33 @@ export async function subscribeToNewsletter(email: string) {
       }
       throw error;
     }
+
+    revalidatePath('/[locale]/admin/marketing/newsletter', 'page');
     return { success: true, subscriber: data };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('subscribeToNewsletter Error:', error.message);
+    return { success: false, error: error.message || 'Abunə olarkən xəta baş verdi' };
   }
 }
 
-// 5. Get actual referral participants and independent referral chain records
+/**
+ * 5. Get actual referral participants and independent referral chain records
+ * BFLA Protection: Requires Staff access.
+ */
 export async function getReferralParticipants() {
   try {
-    const supabase = await createServerSupabaseClient();
+    await requireStaff();
+    const adminSupabase = createAdminSupabaseClient();
 
     // Fetch profiles
-    const { data: profiles, error: pError } = await supabase
+    const { data: profiles, error: pError } = await adminSupabase
       .from('profiles')
       .select('id, full_name, email, referral_code');
 
     if (pError) throw pError;
 
     // Fetch referral records from table
-    const { data: refRecords } = await supabase
+    const { data: refRecords } = await adminSupabase
       .from('referral_records')
       .select('*')
       .order('created_at', { ascending: false });
@@ -262,9 +320,10 @@ export async function getReferralParticipants() {
     console.error('getReferralParticipants Error:', error.message);
     return {
       success: false,
-      error: error.message,
+      error: error.message || 'Məlumat yüklənmədi',
       referralUsers: [],
       recordsList: []
     };
   }
 }
+

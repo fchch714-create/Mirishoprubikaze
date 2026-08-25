@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireStaff } from '@/lib/actions/admin';
 
 export interface AuditLogDB {
   id: string;
@@ -17,7 +18,7 @@ export interface AuditLogDB {
 
 export async function getAuditLogs() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     
     // Select from audit_logs and try to join profiles
     const { data, error } = await supabase
@@ -93,17 +94,22 @@ export async function createAuditLog(payload: {
   record_id?: string;
   old_values?: any;
   new_values?: any;
+  user_id?: string;
 }) {
   try {
     const supabase = await createServerSupabaseClient();
     
-    // Get current user id safely
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get current user id safely if not passed
+    let finalUserId = payload.user_id;
+    if (!finalUserId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      finalUserId = user?.id;
+    }
     
     const { data, error } = await supabase
       .from('audit_logs')
       .insert([{
-        user_id: user?.id || null,
+        user_id: finalUserId || null,
         action: payload.action,
         table_name: payload.table_name,
         record_id: payload.record_id || null,
@@ -123,7 +129,7 @@ export async function createAuditLog(payload: {
 
 export async function getSystemHealth() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     
     // Measure real DB latency
     const startTime = Date.now();
@@ -181,6 +187,8 @@ export async function getSystemHealth() {
 
 export async function getSystemApiIntegrations() {
   try {
+    await requireStaff();
+
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';

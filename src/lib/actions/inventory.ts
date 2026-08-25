@@ -1,6 +1,13 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server';
+import { 
+  requireStaff, 
+  validateId, 
+  sanitizeInput, 
+  validateNonNegativeInt,
+  validateEnum
+} from '@/lib/security';
 import { revalidatePath } from 'next/cache';
 import { getSettings, updateSettings } from '@/lib/actions/settings';
 
@@ -38,80 +45,155 @@ export interface InventoryMovement {
 // 1. Get Warehouses
 export async function getWarehouses() {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase
+    await requireStaff();
+    const adminSupabase = createAdminSupabaseClient();
+    const { data, error } = await adminSupabase
       .from('warehouses')
       .select('*')
       .order('name', { ascending: true });
 
     if (error) throw error;
-    return { success: true, warehouses: data as Warehouse[] };
+    return { success: true, warehouses: (data || []) as Warehouse[] };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('getWarehouses Error:', error.message);
+    return { success: false, error: error.message || 'Anbarlar yüklənmədi', warehouses: [] };
   }
 }
 
 // 2. Create Warehouse
 export async function createWarehouse(name: string, location: string) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase
+    const authUser = await requireStaff();
+    const cleanName = sanitizeInput(name || '').trim();
+    const cleanLocation = sanitizeInput(location || '').trim();
+
+    if (!cleanName || cleanName.length < 2) {
+      return { success: false, error: 'Anbar adı minimum 2 simvol olmalıdır.' };
+    }
+
+    const adminSupabase = createAdminSupabaseClient();
+    const { data, error } = await adminSupabase
       .from('warehouses')
-      .insert({ name, location, is_active: true })
+      .insert({ 
+        name: cleanName, 
+        location: cleanLocation || null, 
+        is_active: true,
+        created_at: new Date().toISOString()
+      })
       .select()
       .single();
 
     if (error) throw error;
-    revalidatePath('/admin/inventory');
+
+    try {
+      await adminSupabase.from('audit_logs').insert([{
+        user_id: authUser.id,
+        action: 'create_warehouse',
+        entity_type: 'warehouse',
+        entity_id: data.id,
+        details: { name: cleanName, location: cleanLocation }
+      }]);
+    } catch (auditErr) {
+      console.warn('Audit log warning:', auditErr);
+    }
+
+    revalidatePath('/[locale]/admin/inventory', 'page');
     return { success: true, warehouse: data };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('createWarehouse Error:', error.message);
+    return { success: false, error: error.message || 'Anbar yaradıla bilmədi' };
   }
 }
 
 // 3. Update Warehouse
 export async function updateWarehouse(id: string, name: string, location: string, is_active: boolean) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase
+    const authUser = await requireStaff();
+    const cleanId = validateId(id, 'Anbar ID');
+    const cleanName = sanitizeInput(name || '').trim();
+    const cleanLocation = sanitizeInput(location || '').trim();
+
+    if (!cleanName || cleanName.length < 2) {
+      return { success: false, error: 'Anbar adı minimum 2 simvol olmalıdır.' };
+    }
+
+    const adminSupabase = createAdminSupabaseClient();
+    const { data, error } = await adminSupabase
       .from('warehouses')
-      .update({ name, location, is_active, updated_at: new Date().toISOString() })
-      .eq('id', id)
+      .update({ 
+        name: cleanName, 
+        location: cleanLocation || null, 
+        is_active: Boolean(is_active), 
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', cleanId)
       .select()
       .single();
 
     if (error) throw error;
-    revalidatePath('/admin/inventory');
+
+    try {
+      await adminSupabase.from('audit_logs').insert([{
+        user_id: authUser.id,
+        action: 'update_warehouse',
+        entity_type: 'warehouse',
+        entity_id: cleanId,
+        details: { name: cleanName, is_active }
+      }]);
+    } catch (auditErr) {
+      console.warn('Audit log warning:', auditErr);
+    }
+
+    revalidatePath('/[locale]/admin/inventory', 'page');
     return { success: true, warehouse: data };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('updateWarehouse Error:', error.message);
+    return { success: false, error: error.message || 'Anbar yenilənmədi' };
   }
 }
 
 // 4. Delete Warehouse
 export async function deleteWarehouse(id: string) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase
+    const authUser = await requireStaff();
+    const cleanId = validateId(id, 'Anbar ID');
+
+    const adminSupabase = createAdminSupabaseClient();
+    const { error } = await adminSupabase
       .from('warehouses')
       .delete()
-      .eq('id', id);
+      .eq('id', cleanId);
 
     if (error) throw error;
-    revalidatePath('/admin/inventory');
+
+    try {
+      await adminSupabase.from('audit_logs').insert([{
+        user_id: authUser.id,
+        action: 'delete_warehouse',
+        entity_type: 'warehouse',
+        entity_id: cleanId,
+        details: { deleted: true }
+      }]);
+    } catch (auditErr) {
+      console.warn('Audit log warning:', auditErr);
+    }
+
+    revalidatePath('/[locale]/admin/inventory', 'page');
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('deleteWarehouse Error:', error.message);
+    return { success: false, error: error.message || 'Anbar silinə bilmədi' };
   }
 }
 
 // 5. Get Inventory Status (with Warehouse & Variant details joined)
 export async function getInventoryStatus() {
   try {
-    const supabase = await createServerSupabaseClient();
+    await requireStaff();
+    const adminSupabase = createAdminSupabaseClient();
     
     // First fetch inventory
-    const { data: inv, error: invError } = await supabase
+    const { data: inv, error: invError } = await adminSupabase
       .from('inventory')
       .select(`
         id,
@@ -137,7 +219,8 @@ export async function getInventoryStatus() {
 
     return { success: true, inventory: formatted as InventoryItem[] };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('getInventoryStatus Error:', error.message);
+    return { success: false, error: error.message || 'Stok məlumatları yüklənmədi', inventory: [] };
   }
 }
 
@@ -151,23 +234,45 @@ export async function addInventoryMovement(payload: {
   target_warehouse_id?: string;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    const authUser = await requireStaff();
+    const cleanWarehouseId = validateId(payload.warehouse_id, 'Anbar ID');
+    const cleanVariantId = validateId(payload.variant_id, 'Variant ID');
+    const cleanType = validateEnum(
+      payload.movement_type, 
+      ['in', 'out', 'transfer', 'damaged', 'reserve'], 
+      'Hərəkət növü'
+    );
+    const cleanQty = validateNonNegativeInt(payload.quantity, 'Miqdar');
+    const cleanReason = sanitizeInput(payload.reason || '').trim();
 
-    // Verify quantity is positive
-    if (payload.quantity <= 0) {
-      return { success: false, error: 'Miqdar sıfırdan böyük olmalıdır.' };
+    if (cleanQty <= 0) {
+      return { success: false, error: 'Miqdar 0-dan böyük olmalıdır.' };
     }
 
+    let cleanTargetWarehouseId: string | null = null;
+    if (cleanType === 'transfer') {
+      if (!payload.target_warehouse_id) {
+        return { success: false, error: 'Transfer üçün hədəf anbar seçilməlidir.' };
+      }
+      cleanTargetWarehouseId = validateId(payload.target_warehouse_id, 'Hədəf Anbar ID');
+      if (cleanTargetWarehouseId === cleanWarehouseId) {
+        return { success: false, error: 'Hədəf anbar mənbə anbarla eyni ola bilməz.' };
+      }
+    }
+
+    const adminSupabase = createAdminSupabaseClient();
+
     // 1. Insert movement record
-    const { data: movement, error: mError } = await supabase
+    const { data: movement, error: mError } = await adminSupabase
       .from('inventory_movements')
       .insert({
-        warehouse_id: payload.warehouse_id,
-        target_warehouse_id: payload.target_warehouse_id || null,
-        variant_id: payload.variant_id,
-        movement_type: payload.movement_type,
-        quantity: payload.quantity,
-        reason: payload.reason,
+        warehouse_id: cleanWarehouseId,
+        target_warehouse_id: cleanTargetWarehouseId,
+        variant_id: cleanVariantId,
+        movement_type: cleanType,
+        quantity: cleanQty,
+        reason: cleanReason || null,
+        created_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -175,28 +280,40 @@ export async function addInventoryMovement(payload: {
     if (mError) throw mError;
 
     // 2. Adjust warehouse inventory quantities and variant quantities
-    if (payload.movement_type === 'in') {
-      await adjustWarehouseStock(supabase, payload.warehouse_id, payload.variant_id, payload.quantity);
-      await adjustVariantStock(supabase, payload.variant_id, payload.quantity);
-    } else if (payload.movement_type === 'out' || payload.movement_type === 'damaged') {
-      await adjustWarehouseStock(supabase, payload.warehouse_id, payload.variant_id, -payload.quantity);
-      await adjustVariantStock(supabase, payload.variant_id, -payload.quantity);
-    } else if (payload.movement_type === 'transfer' && payload.target_warehouse_id) {
+    if (cleanType === 'in') {
+      await adjustWarehouseStock(adminSupabase, cleanWarehouseId, cleanVariantId, cleanQty);
+      await adjustVariantStock(adminSupabase, cleanVariantId, cleanQty);
+    } else if (cleanType === 'out' || cleanType === 'damaged') {
+      await adjustWarehouseStock(adminSupabase, cleanWarehouseId, cleanVariantId, -cleanQty);
+      await adjustVariantStock(adminSupabase, cleanVariantId, -cleanQty);
+    } else if (cleanType === 'transfer' && cleanTargetWarehouseId) {
       // Deduct from source warehouse
-      await adjustWarehouseStock(supabase, payload.warehouse_id, payload.variant_id, -payload.quantity);
+      await adjustWarehouseStock(adminSupabase, cleanWarehouseId, cleanVariantId, -cleanQty);
       // Add to target warehouse
-      await adjustWarehouseStock(supabase, payload.target_warehouse_id, payload.variant_id, payload.quantity);
-      // Total central stock remains unchanged for transfer
-    } else if (payload.movement_type === 'reserve') {
-      // Reserve items (deduct from available warehouse stock, deduct from variant stock)
-      await adjustWarehouseStock(supabase, payload.warehouse_id, payload.variant_id, -payload.quantity);
-      await adjustVariantStock(supabase, payload.variant_id, -payload.quantity);
+      await adjustWarehouseStock(adminSupabase, cleanTargetWarehouseId, cleanVariantId, cleanQty);
+    } else if (cleanType === 'reserve') {
+      await adjustWarehouseStock(adminSupabase, cleanWarehouseId, cleanVariantId, -cleanQty);
+      await adjustVariantStock(adminSupabase, cleanVariantId, -cleanQty);
     }
 
-    revalidatePath('/admin/inventory');
+    // Audit log
+    try {
+      await adminSupabase.from('audit_logs').insert([{
+        user_id: authUser.id,
+        action: 'inventory_movement',
+        entity_type: 'inventory',
+        entity_id: cleanVariantId,
+        details: { movement_type: cleanType, quantity: cleanQty, warehouse_id: cleanWarehouseId, target_warehouse_id: cleanTargetWarehouseId }
+      }]);
+    } catch (auditErr) {
+      console.warn('Audit log warning:', auditErr);
+    }
+
+    revalidatePath('/[locale]/admin/inventory', 'page');
     return { success: true, movement };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('addInventoryMovement Error:', error.message);
+    return { success: false, error: error.message || 'Hərəkət qeydə alına bilmədi' };
   }
 }
 
@@ -218,7 +335,6 @@ async function adjustWarehouseStock(supabase: any, warehouseId: string, variantI
       .update({ quantity: newQty, updated_at: new Date().toISOString() })
       .eq('id', inv.id);
   } else {
-    // If it doesn't exist, insert new inventory record (only if positive delta)
     const qty = Math.max(0, delta);
     await supabase
       .from('inventory')
@@ -251,8 +367,9 @@ async function adjustVariantStock(supabase: any, variantId: string, delta: numbe
 // 7. Get all products with variants for the operations dropdown selectors
 export async function getProductsAndVariants() {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: variants, error } = await supabase
+    await requireStaff();
+    const adminSupabase = createAdminSupabaseClient();
+    const { data: variants, error } = await adminSupabase
       .from('variants')
       .select(`
         id,
@@ -274,15 +391,17 @@ export async function getProductsAndVariants() {
 
     return { success: true, variants: formatted };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('getProductsAndVariants Error:', error.message);
+    return { success: false, error: error.message || 'Məhsullar yüklənmədi', variants: [] };
   }
 }
 
 // 8. Get Recent Movements list
 export async function getRecentMovements() {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: movements, error } = await supabase
+    await requireStaff();
+    const adminSupabase = createAdminSupabaseClient();
+    const { data: movements, error } = await adminSupabase
       .from('inventory_movements')
       .select(`
         id,
@@ -316,7 +435,8 @@ export async function getRecentMovements() {
 
     return { success: true, movements: formatted };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('getRecentMovements Error:', error.message);
+    return { success: false, error: error.message || 'Hərəkətlər yüklənmədi', movements: [] };
   }
 }
 
@@ -336,14 +456,18 @@ export async function getGlobalReorderPoint() {
 // 10. Update Global Reorder Point
 export async function updateGlobalReorderPoint(reorderPoint: number) {
   try {
+    await requireStaff();
+    const validPoint = validateNonNegativeInt(reorderPoint, 'Kritik stok həddi');
     const current = await getSettings('inventory');
     const existingData = (current.success && current.data) ? current.data : {};
-    const updatedData = { ...existingData, global_reorder_point: reorderPoint };
+    const updatedData = { ...existingData, global_reorder_point: validPoint };
     const res = await updateSettings('inventory', updatedData);
     if (!res.success) throw new Error(res.error);
     revalidatePath('/[locale]/admin/inventory', 'page');
-    return { success: true, reorderPoint };
+    return { success: true, reorderPoint: validPoint };
   } catch (error: any) {
+    console.error('updateGlobalReorderPoint Error:', error.message);
     return { success: false, error: error.message };
   }
 }
+

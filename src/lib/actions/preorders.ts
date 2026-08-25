@@ -3,6 +3,13 @@
 'use server';
 
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server';
+import { 
+  sanitizeInput, 
+  validateId, 
+  validateNonNegativeInt, 
+  requireStaff, 
+  requireAdmin 
+} from '@/lib/security';
 import { revalidatePath } from 'next/cache';
 import { sendPaymentConfirmedEmail, sendStockAssignedEmail } from '@/lib/email';
 
@@ -66,7 +73,6 @@ export interface SupplierReportItem {
  * Generate a collision-resistant unique pre-order code
  * Format: RCYYYYXXXX (e.g., RC2026A8K9)
  */
-
 function generatePreorderCode(): string {
   const year = new Date().getFullYear();
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -78,7 +84,8 @@ function generatePreorderCode(): string {
 }
 
 /**
- * Create a new Pre-order record
+ * Create a new Pre-order record (Public or Authenticated)
+ * Full server-side validation, product status check, rate limiting, and sanitization.
  */
 export async function createPreorderAction(payload: {
   product_id: string;
@@ -91,41 +98,69 @@ export async function createPreorderAction(payload: {
   admin_notes?: string | null;
 }) {
   try {
-    const supabase = createAdminSupabaseClient();
-    const quantity = Math.max(1, Number(payload.quantity || 1));
-    const cleanPhone = payload.customer_phone.trim();
-    const cleanEmail = payload.customer_email?.trim().toLowerCase() || '';
+    const cleanProductId = validateId(payload.product_id, 'Məhsul ID');
+    const cleanVariantId = payload.variant_id ? validateId(payload.variant_id, 'Variant ID') : null;
+    const cleanName = sanitizeInput(payload.customer_name || 'Müştəri');
+    const cleanPhone = sanitizeInput(payload.customer_phone || '').trim().replace(/[^0-9+]/g, '');
+    const cleanEmail = payload.customer_email ? sanitizeInput(payload.customer_email).trim().toLowerCase() : null;
+    const quantity = validateNonNegativeInt(payload.quantity || 1, 'Məhsul Sayı');
 
-    // Spam Protection v3: 5-minute rate limiting check
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    
-    let spamFilter = `customer_phone.eq.${cleanPhone}`;
-    if (cleanEmail) {
-      spamFilter += `,customer_email.eq.${cleanEmail}`;
+    if (quantity <= 0) {
+      return { success: false, error: 'Ön sifariş sayı ən azı 1 olmalıdır.' };
     }
 
-    const { data: recentPreorders } = await supabase
+    if (!cleanPhone || cleanPhone.length < 7) {
+      return { success: false, error: 'Düzgün telefon nömrəsi daxil edilməlidir.' };
+    }
+
+    const adminSupabase = createAdminSupabaseClient();
+
+    // 1. Verify Product exists and is active / allows pre-order
+    const { data: productData, error: pError } = await adminSupabase
+      .from('products')
+      .select('id, title_az, is_active, allow_preorder')
+      .eq('id', cleanProductId)
+      .single();
+
+    if (pError || !productData) {
+      return { success: false, error: 'Məhsul tapılmadı.' };
+    }
+
+    if (!productData.is_active) {
+      return { success: false, error: 'Bu məhsul hazırda aktiv deyil.' };
+    }
+
+    // 2. Spam Protection: 2-minute rate limiting check by phone/email
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    
+    let spamQuery = adminSupabase
       .from('preorders')
       .select('id, created_at')
-      .or(spamFilter)
-      .gte('created_at', fiveMinutesAgo)
+      .eq('customer_phone', cleanPhone)
+      .gte('created_at', twoMinutesAgo)
       .limit(1);
+
+    const { data: recentPreorders } = await spamQuery;
 
     if (recentPreorders && recentPreorders.length > 0) {
       return {
         success: false,
-        error: 'Spam Qorunması: Eyni telefon nömrəsi və ya email ilə son 5 dəqiqə ərzində təkrar ön sifariş yaradılıb. Zəhmət olmasa 5 dəqiqə gözləyib yenidən cəhd edin.'
+        error: 'Spam Qorunması: Eyni telefon nömrəsi ilə son 2 dəqiqə ərzində təkrar ön sifariş qeydə alınıb. Zəhmət olmasa bir qədər gözləyin.'
       };
     }
 
-    // Retry loop for unique preorder_code collision safety
+    // 3. User session resolution
+    const userClient = await createServerSupabaseClient();
+    const { data: { user: authUser } } = await userClient.auth.getUser();
+
+    // 4. Retry loop for unique preorder_code collision safety
     let code = generatePreorderCode();
     let isUnique = false;
     let attempts = 0;
 
     while (!isUnique && attempts < 5) {
       attempts++;
-      const { data: existing } = await supabase
+      const { data: existing } = await adminSupabase
         .from('preorders')
         .select('id')
         .eq('preorder_code', code)
@@ -140,20 +175,20 @@ export async function createPreorderAction(payload: {
 
     const insertData: any = {
       preorder_code: code,
-      product_id: payload.product_id,
-      variant_id: payload.variant_id || null,
-      customer_name: payload.customer_name.trim(),
-      customer_phone: payload.customer_phone.trim(),
-      customer_email: payload.customer_email?.trim() || null,
+      product_id: cleanProductId,
+      variant_id: cleanVariantId,
+      customer_name: cleanName,
+      customer_phone: cleanPhone,
+      customer_email: cleanEmail,
       quantity,
       status: 'pending_payment',
-      user_id: payload.user_id || null,
-      admin_notes: payload.admin_notes || null,
+      user_id: authUser?.id || payload.user_id || null,
+      admin_notes: payload.admin_notes ? sanitizeInput(payload.admin_notes) : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('preorders')
       .insert(insertData)
       .select()
@@ -173,7 +208,7 @@ export async function createPreorderAction(payload: {
 }
 
 /**
- * Fetch preorders for admin with optional filtering & search
+ * Fetch preorders for admin with optional filtering & search (Requires Staff or Admin)
  * Dynamically computes queue position for paid_confirmed / assigned items
  */
 export async function getAdminPreordersAction(params?: {
@@ -181,9 +216,10 @@ export async function getAdminPreordersAction(params?: {
   search?: string;
 }) {
   try {
-    const supabase = await createServerSupabaseClient();
+    await requireStaff();
+    const adminSupabase = createAdminSupabaseClient();
 
-    let query = supabase
+    let query = adminSupabase
       .from('preorders')
       .select(`
         *,
@@ -192,26 +228,25 @@ export async function getAdminPreordersAction(params?: {
       .order('created_at', { ascending: false });
 
     if (params?.status && params.status !== 'all') {
-      query = query.eq('status', params.status);
+      query = query.eq('status', sanitizeInput(params.status));
     }
 
     if (params?.search && params.search.trim()) {
-      const s = `%${params.search.trim()}%`;
+      const cleanSearch = sanitizeInput(params.search).trim();
+      const s = `%${cleanSearch}%`;
       query = query.or(`preorder_code.ilike.${s},customer_name.ilike.${s},customer_phone.ilike.${s},customer_email.ilike.${s}`);
     }
 
     const { data, error } = await query;
 
     if (error) {
-      // If table does not exist yet (before migration), return empty array gracefully
       console.error('getAdminPreordersAction Error:', error.message);
       return { success: true, data: [] };
     }
 
     const preorders: PreorderItem[] = data || [];
 
-    // Calculate dynamic FIFO queue position for paid_confirmed and assigned status
-    // Items with paid_at timestamp are sorted by paid_at ASC
+    // FIFO queue position calculation for paid_confirmed and assigned status
     const paidItems = preorders
       .filter((item) => (item.status === 'paid_confirmed' || item.status === 'assigned') && item.paid_at)
       .sort((a, b) => new Date(a.paid_at!).getTime() - new Date(b.paid_at!).getTime());
@@ -234,15 +269,16 @@ export async function getAdminPreordersAction(params?: {
 }
 
 /**
- * Supplier Summary Report (Təchizatçı Hesabatı - Çin Sifariş Sayğacı)
+ * Supplier Summary Report (Requires Staff or Admin)
  * SUM(quantity) of confirmed preorders per product
  */
 export async function getSupplierReportAction() {
   try {
-    const supabase = await createServerSupabaseClient();
+    await requireStaff();
+    const adminSupabase = createAdminSupabaseClient();
 
     // Query active preorders in 'paid_confirmed' or 'assigned' status
-    const { data: activePreorders, error } = await supabase
+    const { data: activePreorders, error } = await adminSupabase
       .from('preorders')
       .select(`
         *,
@@ -315,7 +351,7 @@ export async function getSupplierReportAction() {
 }
 
 /**
- * Update Pre-Order status
+ * Update Pre-Order status (Requires Staff or Admin)
  */
 export async function updatePreorderStatusAction(
   preorder_id: string,
@@ -323,13 +359,15 @@ export async function updatePreorderStatusAction(
   admin_notes?: string
 ) {
   try {
-    const supabase = createAdminSupabaseClient();
+    const { user } = await requireStaff();
+    const cleanId = validateId(preorder_id, 'Ön Sifariş ID');
+    const adminSupabase = createAdminSupabaseClient();
 
     // Fetch existing preorder record
-    const { data: existing, error: fetchErr } = await supabase
+    const { data: existing, error: fetchErr } = await adminSupabase
       .from('preorders')
       .select('*')
-      .eq('id', preorder_id)
+      .eq('id', cleanId)
       .single();
 
     if (fetchErr || !existing) {
@@ -342,7 +380,7 @@ export async function updatePreorderStatusAction(
     };
 
     if (admin_notes !== undefined) {
-      updateObj.admin_notes = admin_notes;
+      updateObj.admin_notes = sanitizeInput(admin_notes);
     }
 
     // Set paid_at when transitioning to paid_confirmed
@@ -350,10 +388,10 @@ export async function updatePreorderStatusAction(
       updateObj.paid_at = new Date().toISOString();
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('preorders')
       .update(updateObj)
-      .eq('id', preorder_id)
+      .eq('id', cleanId)
       .select('*, product:products(title_az, preorder_lead_time)')
       .single();
 
@@ -362,11 +400,19 @@ export async function updatePreorderStatusAction(
       return { success: false, error: error.message };
     }
 
+    // Audit log
+    await adminSupabase.from('audit_logs').insert([{
+      user_id: user.id,
+      action: 'update_preorder_status',
+      entity_type: 'preorder',
+      entity_id: cleanId,
+      details: { old_status: existing.status, new_status, admin_notes }
+    }]);
+
     // Trigger Email Notifications based on Status Change
     if (data && data.customer_email) {
       if (new_status === 'paid_confirmed') {
-        // Calculate queue position
-        const { count } = await supabase
+        const { count } = await adminSupabase
           .from('preorders')
           .select('id', { count: 'exact', head: true })
           .eq('product_id', data.product_id)
@@ -400,17 +446,20 @@ export async function updatePreorderStatusAction(
 }
 
 /**
- * Check if newly arrived stock matches pending confirmed pre-orders (Növbə Sinxronizasiyası)
+ * Check if newly arrived stock matches pending confirmed pre-orders (Requires Staff or Admin)
  */
 export async function checkStockAllocationNeedAction(productId: string, newlyAddedStock: number) {
   try {
-    const supabase = createAdminSupabaseClient();
+    await requireStaff();
+    const cleanProductId = validateId(productId, 'Məhsul ID');
+    const addedStock = validateNonNegativeInt(newlyAddedStock, 'Əlavə Edilən Stok');
+    const adminSupabase = createAdminSupabaseClient();
 
     // Fetch product title
-    const { data: prod } = await supabase
+    const { data: prod } = await adminSupabase
       .from('products')
       .select('id, title_az, stock_quantity')
-      .eq('id', productId)
+      .eq('id', cleanProductId)
       .single();
 
     if (!prod) {
@@ -418,10 +467,10 @@ export async function checkStockAllocationNeedAction(productId: string, newlyAdd
     }
 
     // Fetch waiting paid_confirmed preorders sorted by paid_at ASC
-    const { data: waitingPreorders } = await supabase
+    const { data: waitingPreorders } = await adminSupabase
       .from('preorders')
       .select('*')
-      .eq('product_id', productId)
+      .eq('product_id', cleanProductId)
       .eq('status', 'paid_confirmed')
       .order('paid_at', { ascending: true });
 
@@ -439,22 +488,7 @@ export async function checkStockAllocationNeedAction(productId: string, newlyAdd
       };
     }
 
-    // How many units/persons can be assigned stock
-    let allocableCount = 0;
-    let accumulatedUnits = 0;
-    for (const item of preordersList) {
-      if (accumulatedUnits + item.quantity <= newlyAddedStock) {
-        accumulatedUnits += item.quantity;
-        allocableCount++;
-      } else if (allocableCount === 0) {
-        allocableCount = 1; // At least first in queue
-        break;
-      } else {
-        break;
-      }
-    }
-
-    const suggestedAllocationCount = Math.min(newlyAddedStock, waitingCount);
+    const suggestedAllocationCount = Math.min(addedStock, waitingCount);
 
     return {
       success: true,
@@ -471,7 +505,7 @@ export async function checkStockAllocationNeedAction(productId: string, newlyAdd
 }
 
 /**
- * Confirm Stock Allocation to Queue (Növbədəki ön sifarişlərə avtomatik stok ayırmaq)
+ * Confirm Stock Allocation to Queue (Requires Staff or Admin)
  */
 export async function confirmStockAllocationAction(payload: {
   productId: string;
@@ -479,18 +513,21 @@ export async function confirmStockAllocationAction(payload: {
   addedStockQty?: number;
 }) {
   try {
-    const supabase = createAdminSupabaseClient();
-    const { productId, allocatedUnits, addedStockQty } = payload;
+    const { user } = await requireStaff();
+    const cleanProductId = validateId(payload.productId, 'Məhsul ID');
+    const allocatedUnits = validateNonNegativeInt(payload.allocatedUnits, 'Ayrılacaq Vahid Sayı');
+    const addedStockQty = payload.addedStockQty ? validateNonNegativeInt(payload.addedStockQty, 'Əlavə Edilən Stok') : 0;
+    const adminSupabase = createAdminSupabaseClient();
 
-    if (!productId || allocatedUnits <= 0) {
-      return { success: false, error: 'Məlumatlar tam deyil.' };
+    if (allocatedUnits <= 0) {
+      return { success: false, error: 'Ayrılacaq say ən azı 1 olmalıdır.' };
     }
 
     // 1. Fetch top allocatedUnits preorders in paid_confirmed status
-    const { data: waitingList } = await supabase
+    const { data: waitingList } = await adminSupabase
       .from('preorders')
       .select('*, product:products(title_az)')
-      .eq('product_id', productId)
+      .eq('product_id', cleanProductId)
       .eq('status', 'paid_confirmed')
       .order('paid_at', { ascending: true })
       .limit(allocatedUnits);
@@ -502,7 +539,7 @@ export async function confirmStockAllocationAction(payload: {
     const assignedIds = waitingList.map(item => item.id);
 
     // 2. Update their status to 'assigned'
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await adminSupabase
       .from('preorders')
       .update({
         status: 'assigned',
@@ -514,7 +551,16 @@ export async function confirmStockAllocationAction(payload: {
       return { success: false, error: updateErr.message };
     }
 
-    // 3. Send automated emails to allocated customers
+    // 3. Audit log
+    await adminSupabase.from('audit_logs').insert([{
+      user_id: user.id,
+      action: 'allocate_preorder_stock',
+      entity_type: 'preorder_allocation',
+      entity_id: cleanProductId,
+      details: { assigned_count: assignedIds.length, assigned_ids: assignedIds, added_stock: addedStockQty }
+    }]);
+
+    // 4. Send automated emails to allocated customers
     for (const item of waitingList) {
       if (item.customer_email) {
         sendStockAssignedEmail({
@@ -526,20 +572,20 @@ export async function confirmStockAllocationAction(payload: {
       }
     }
 
-    // 4. Update product stock_quantity if addedStockQty provided
-    if (addedStockQty && addedStockQty > 0) {
-      const { data: currentProd } = await supabase
+    // 5. Update product stock_quantity if addedStockQty provided
+    if (addedStockQty > 0) {
+      const { data: currentProd } = await adminSupabase
         .from('products')
         .select('stock_quantity')
-        .eq('id', productId)
+        .eq('id', cleanProductId)
         .single();
 
       if (currentProd) {
         const newStock = Math.max(0, Number(currentProd.stock_quantity || 0) + addedStockQty);
-        await supabase
+        await adminSupabase
           .from('products')
           .update({ stock_quantity: newStock })
-          .eq('id', productId);
+          .eq('id', cleanProductId);
       }
     }
 
@@ -558,19 +604,22 @@ export async function confirmStockAllocationAction(payload: {
 }
 
 /**
- * Update Pre-Order Admin Notes
+ * Update Pre-Order Admin Notes (Requires Staff or Admin)
  */
 export async function updatePreorderNotesAction(preorder_id: string, notes: string) {
   try {
-    const supabase = createAdminSupabaseClient();
+    const { user } = await requireStaff();
+    const cleanId = validateId(preorder_id, 'Ön Sifariş ID');
+    const cleanNotes = sanitizeInput(notes || '');
+    const adminSupabase = createAdminSupabaseClient();
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('preorders')
       .update({
-        admin_notes: notes,
+        admin_notes: cleanNotes,
         updated_at: new Date().toISOString()
       })
-      .eq('id', preorder_id)
+      .eq('id', cleanId)
       .select()
       .single();
 
@@ -586,61 +635,75 @@ export async function updatePreorderNotesAction(preorder_id: string, notes: stri
 }
 
 /**
- * Delete a Pre-Order record
+ * Delete a Pre-Order record (Requires Admin Privilege)
  */
+export async function deletePreorderAction(preorder_id: string) {
+  try {
+    const { user } = await requireAdmin();
+    const cleanId = validateId(preorder_id, 'Ön Sifariş ID');
+    const adminSupabase = createAdminSupabaseClient();
+
+    const { error } = await adminSupabase
+      .from('preorders')
+      .delete()
+      .eq('id', cleanId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    // Audit log
+    await adminSupabase.from('audit_logs').insert([{
+      user_id: user.id,
+      action: 'delete_preorder',
+      entity_type: 'preorder',
+      entity_id: cleanId,
+      details: { deleted_at: new Date().toISOString() }
+    }]);
+
+    revalidatePath('/[locale]/admin/preorders', 'page');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Silinərkən xəta baş verdi' };
+  }
+}
+
 /**
  * Public Track Order/Preorder Action (Guest Lookup)
  * Lookup by Order/Preorder Code + Phone OR Email
+ * Protected against PII leakage by strictly matching both Code and Contact.
  */
 export async function trackOrderOrPreorderAction(code: string, contact: string) {
   try {
-    const supabase = createAdminSupabaseClient();
-
-    const cleanCode = code.trim();
-    const codeNoHyphen = cleanCode.replace(/-/g, '');
-    const cleanContact = contact.trim();
+    const cleanCode = sanitizeInput(code || '').trim();
+    const cleanContact = sanitizeInput(contact || '').trim();
 
     if (!cleanCode || !cleanContact) {
-      return { success: false, error: 'Zəhmət olmasa Sifariş Kodu və Telefon/Email məlumatını daxil edin.' };
+      return { success: false, error: 'Zəhmət olmasa Sifariş Kodunu və Telefon/Email məlumatını daxil edin.' };
     }
 
-    // Format phone if digits
+    const adminSupabase = createAdminSupabaseClient();
     const digitsOnly = cleanContact.replace(/[^0-9]/g, '');
-    let formattedPhone = cleanContact;
-    if (digitsOnly.length >= 7) {
-      if (digitsOnly.startsWith('0')) {
-        formattedPhone = '+994' + digitsOnly.slice(1);
-      } else if (digitsOnly.startsWith('994')) {
-        formattedPhone = '+' + digitsOnly;
-      } else if (!cleanContact.startsWith('+')) {
-        formattedPhone = '+994' + digitsOnly;
-      }
-    }
+    const cleanEmail = cleanContact.toLowerCase();
 
     // 1. Try finding in preorders table
-    const { data: preorderList } = await supabase
+    const { data: preorderList } = await adminSupabase
       .from('preorders')
       .select('*, product:products(id, title_az, title_en, title_ru, image_url, price_azn, preorder_lead_time)')
-      .or(`preorder_code.ilike.%${cleanCode}%,preorder_code.ilike.%${codeNoHyphen}%,id.eq.${cleanCode.length === 36 ? cleanCode : '00000000-0000-0000-0000-000000000000'}`);
+      .eq('preorder_code', cleanCode.toUpperCase());
 
     if (preorderList && preorderList.length > 0) {
-      // Filter by phone or email
       const matched = preorderList.find((item: any) => {
-        const phoneMatch = item.customer_phone && (
-          item.customer_phone.includes(digitsOnly) || 
-          item.customer_phone === formattedPhone
-        );
-        const emailMatch = item.customer_email && (
-          item.customer_email.toLowerCase() === cleanContact.toLowerCase()
-        );
+        const itemPhoneDigits = (item.customer_phone || '').replace(/[^0-9]/g, '');
+        const phoneMatch = digitsOnly.length >= 7 && itemPhoneDigits.includes(digitsOnly);
+        const emailMatch = item.customer_email && item.customer_email.toLowerCase() === cleanEmail;
         return phoneMatch || emailMatch;
       });
 
       if (matched) {
-        // Calculate queue position if paid_confirmed
         let queuePosition = null;
         if (matched.status === 'paid_confirmed' && matched.product_id) {
-          const { count } = await supabase
+          const { count } = await adminSupabase
             .from('preorders')
             .select('id', { count: 'exact', head: true })
             .eq('product_id', matched.product_id)
@@ -671,20 +734,24 @@ export async function trackOrderOrPreorderAction(code: string, contact: string) 
     }
 
     // 2. Try finding in standard orders table
-    const { data: orderList } = await supabase
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanCode);
+    let orderQuery = adminSupabase
       .from('orders')
-      .select('*, order_items(*, product:products(title_az, image_url))')
-      .or(`id.eq.${cleanCode.length === 36 ? cleanCode : '00000000-0000-0000-0000-000000000000'},id.ilike.%${cleanCode}%`);
+      .select('id, full_name, phone, email, total, shipping_status, payment_status, created_at, shipping_address, order_items(*, product:products(title_az, image_url))');
+
+    if (isUUID) {
+      orderQuery = orderQuery.eq('id', cleanCode);
+    } else {
+      orderQuery = orderQuery.ilike('id', `${cleanCode}%`);
+    }
+
+    const { data: orderList } = await orderQuery.limit(5);
 
     if (orderList && orderList.length > 0) {
       const matchedOrder = orderList.find((ord: any) => {
-        const phoneMatch = ord.customer_phone && (
-          ord.customer_phone.includes(digitsOnly) || 
-          ord.customer_phone === formattedPhone
-        );
-        const emailMatch = ord.email && (
-          ord.email.toLowerCase() === cleanContact.toLowerCase()
-        );
+        const ordPhoneDigits = (ord.phone || '').replace(/[^0-9]/g, '');
+        const phoneMatch = digitsOnly.length >= 7 && ordPhoneDigits.includes(digitsOnly);
+        const emailMatch = ord.email && ord.email.toLowerCase() === cleanEmail;
         return phoneMatch || emailMatch;
       });
 
@@ -695,12 +762,12 @@ export async function trackOrderOrPreorderAction(code: string, contact: string) 
           data: {
             id: matchedOrder.id,
             code: matchedOrder.id.substring(0, 8).toUpperCase(),
-            customer_name: matchedOrder.customer_name,
-            customer_phone: matchedOrder.customer_phone,
-            status: matchedOrder.order_status || matchedOrder.status || 'pending',
-            total_amount_azn: matchedOrder.total_amount_azn || matchedOrder.total_amount,
-            delivery_method: matchedOrder.delivery_method,
-            delivery_address: matchedOrder.delivery_address,
+            customer_name: matchedOrder.full_name,
+            customer_phone: matchedOrder.phone,
+            status: matchedOrder.shipping_status || 'pending',
+            payment_status: matchedOrder.payment_status,
+            total_amount_azn: Number(matchedOrder.total || 0),
+            delivery_address: matchedOrder.shipping_address,
             created_at: matchedOrder.created_at,
             items: matchedOrder.order_items
           }
@@ -710,7 +777,7 @@ export async function trackOrderOrPreorderAction(code: string, contact: string) 
 
     return {
       success: false,
-      error: 'Daxil etdiyiniz Məlumatlar üzrə heç bir aktiv Sifariş və ya Ön Sifariş tapılmadı. Zəhmət olmasa Sifariş Kodunu və Telefon/Email məlumatını dəqiqləşdirin.'
+      error: 'Daxil etdiyiniz məlumatlar üzrə heç bir aktiv sifariş və ya ön sifariş tapılmadı. Zəhmət olmasa Sifariş Kodunu və Telefon/Email məlumatını dəqiqləşdirin.'
     };
   } catch (err: any) {
     console.error('trackOrderOrPreorderAction Error:', err);
@@ -718,22 +785,3 @@ export async function trackOrderOrPreorderAction(code: string, contact: string) 
   }
 }
 
-export async function deletePreorderAction(preorder_id: string) {
-  try {
-    const supabase = createAdminSupabaseClient();
-
-    const { error } = await supabase
-      .from('preorders')
-      .delete()
-      .eq('id', preorder_id);
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    revalidatePath('/[locale]/admin/preorders', 'page');
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Silinərkən xəta baş verdi' };
-  }
-}

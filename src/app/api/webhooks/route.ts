@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSupabaseClient } from '@/lib/supabase/server';
 import { sanitizeInput } from '@/lib/security';
+import crypto from 'crypto';
 
 /**
  * Enterprise Webhook Route Handler
@@ -14,18 +15,31 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
     const headers = req.headers;
     
-    // 1. Signature or Token Verification
+    // 1. Signature or Token Verification with Timing-Safe comparison
     const authHeader = headers.get('authorization') || '';
     const webhookSecret = process.env.WEBHOOK_SECRET || 'fallback_secret_key_for_dev';
+    const expectedAuth = `Bearer ${webhookSecret}`;
     
-    // Basic verification check
-    if (authHeader !== `Bearer ${webhookSecret}`) {
-      console.warn('Webhook Unauthorized: Signatures do not match.');
+    const authBuf = Buffer.from(authHeader);
+    const expectedBuf = Buffer.from(expectedAuth);
+
+    const isAuthorized = 
+      authBuf.length === expectedBuf.length && 
+      crypto.timingSafeEqual(authBuf, expectedBuf);
+
+    if (!isAuthorized) {
+      console.warn('Webhook Unauthorized: Signatures or tokens do not match.');
       return NextResponse.json({ error: 'İcazəsiz daxilolma. Webhook açarı yanlışdır.' }, { status: 401 });
     }
 
-    const payload = JSON.parse(rawBody);
-    const event = sanitizeInput(payload.event || '');
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Yanlış JSON formatı.' }, { status: 400 });
+    }
+
+    const event = sanitizeInput(payload.event || '').trim();
 
     // Initialize elevated Admin Supabase client to bypass standard RLS for backend integrations
     const supabaseAdmin = createAdminSupabaseClient();

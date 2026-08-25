@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { signIn } from '@/lib/actions/auth';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -28,12 +27,14 @@ import {
   Wallet,
   Building,
   Loader2,
-  Clock
+  Clock,
+  X
 } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 import { submitOrderAtomic } from '@/lib/actions/order';
 import { validateCoupon } from '@/lib/actions/coupons';
 import { validateGiftCard } from '@/lib/actions/gift-cards';
+import { NEAR_METRO_STATIONS, FAR_METRO_STATIONS, getMetroStationCategory, getMetroStationPrice } from '@/lib/constants/delivery';
 import type { ApplicationDictionary } from '@/types/application.types';
 
 interface CheckoutFormProps {
@@ -41,13 +42,13 @@ interface CheckoutFormProps {
   locale: string;
 }
 
-import { NEAR_METRO_STATIONS, FAR_METRO_STATIONS, getMetroStationCategory, getMetroStationPrice } from '@/lib/constants/delivery';
-
 export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
   const router = useRouter();
   const {
     items,
     appliedCoupon,
+    removeCoupon,
+    applyCoupon,
     clearCart
   } = useCartStore();
 
@@ -69,7 +70,7 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
   const [email, setEmail] = React.useState('');
   const [address, setAddress] = React.useState('');
 
-  // Auto-detect logged-in user session
+  // Auto-detect logged-in user session & profile
   React.useEffect(() => {
     const supabaseClient = createClient();
     async function loadActiveSession() {
@@ -87,6 +88,26 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
           }
           if (user.user_metadata?.phone) {
             setPhone(user.user_metadata.phone);
+          }
+
+          // Also attempt to get saved profile details
+          try {
+            const { data: profile } = await supabaseClient
+              .from('profiles')
+              .select('full_name, phone')
+              .eq('id', user.id)
+              .maybeSingle();
+
+            if (profile) {
+              if (profile.full_name && !user.user_metadata?.full_name) {
+                setName(profile.full_name);
+              }
+              if (profile.phone && !user.user_metadata?.phone) {
+                setPhone(profile.phone);
+              }
+            }
+          } catch (pErr) {
+            console.warn('Profile fetch note:', pErr);
           }
         }
       } catch (err) {
@@ -111,7 +132,7 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
   const [validationErrors, setValidationErrors] = React.useState<Record<string, string>>({});
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [couponInput, setCouponInput] = React.useState('');
-  const { applyCoupon, getOriginalTotalPrice, getProductSavings } = useCartStore();
+  const { getOriginalTotalPrice, getProductSavings } = useCartStore();
 
   const subtotal = useCartStore((state) => state.items.reduce((total, item) => total + item.price_azn * item.quantity, 0));
   const origSubtotal = useCartStore((state) => state.getOriginalTotalPrice());
@@ -265,6 +286,25 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
         }
         if (data.user.user_metadata?.phone) {
           setPhone(data.user.user_metadata.phone);
+        }
+
+        try {
+          const { data: profile } = await supabaseClient
+            .from('profiles')
+            .select('full_name, phone')
+            .eq('id', data.user.id)
+            .maybeSingle();
+
+          if (profile) {
+            if (profile.full_name && !data.user.user_metadata?.full_name) {
+              setName(profile.full_name);
+            }
+            if (profile.phone && !data.user.user_metadata?.phone) {
+              setPhone(profile.phone);
+            }
+          }
+        } catch (pErr) {
+          console.warn('Profile fetch note in handleLogin:', pErr);
         }
       }
     } catch (err: any) {
@@ -1264,10 +1304,20 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
             {appliedCoupon && (
               <div className="flex justify-between items-center bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 p-2.5 rounded-xl border border-green-200/50 text-xs font-bold">
                 <span className="flex items-center gap-1.5">
-                  <Percent className="h-3.5 w-3.5" />
-                  <span>{t({ az: `Kupon (${appliedCoupon})`, en: `Coupon (${appliedCoupon})`, ru: `Купон (${appliedCoupon})` })}</span>
+                  <Percent className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate max-w-[140px]">{t({ az: `Kupon (${appliedCoupon})`, en: `Coupon (${appliedCoupon})`, ru: `Купон (${appliedCoupon})` })}</span>
                 </span>
-                <span className="font-mono">-{discountAmount.toFixed(2)} AZN</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono">-{discountAmount.toFixed(2)} AZN</span>
+                  <button
+                    type="button"
+                    onClick={() => removeCoupon()}
+                    title={t({ az: 'Kuponu sil', en: 'Remove coupon', ru: 'Удалить купон' })}
+                    className="p-1 rounded-md text-green-700 hover:bg-green-200/50 dark:text-green-300 dark:hover:bg-green-900/50 transition-colors cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             )}
 

@@ -191,6 +191,9 @@ export async function getSystemApiIntegrations() {
 
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const cloudinaryName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME || '';
+    const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY || '';
+    const webhookSecret = process.env.WEBHOOK_SECRET || '';
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
     const geminiKey = process.env.GEMINI_API_KEY || '';
     const resendKey = process.env.RESEND_API_KEY || '';
@@ -208,17 +211,26 @@ export async function getSystemApiIntegrations() {
         keyDisplay: maskKey(supabaseAnonKey),
         isConfigured: Boolean(supabaseAnonKey && supabaseUrl),
         statusText: (supabaseAnonKey && supabaseUrl) ? 'Aktiv' : 'Təyin edilməyib',
-        url: supabaseUrl ? supabaseUrl.replace(/https?:\/\//, '').slice(0, 20) + '...' : 'Lokal / Bulud',
+        url: supabaseUrl ? supabaseUrl.replace(/https?:\/\//, '').slice(0, 24) : 'Lokal / Bulud',
         description: 'Verilənlər bazası, Realtime və İstifadəçi Identifikasiyası'
       },
       {
-        id: 'stripe',
-        name: 'Stripe Payment Gateway API',
-        keyDisplay: maskKey(stripeSecretKey),
-        isConfigured: Boolean(stripeSecretKey),
-        statusText: stripeSecretKey ? 'Aktiv' : 'Quraşdırılmayıb',
-        url: 'api.stripe.com',
-        description: 'Onlayn bank kartı ilə ödənişlərin qəbulu və iadə idarəetməsi'
+        id: 'cloudinary',
+        name: 'Cloudinary CDN & Media Storage',
+        keyDisplay: maskKey(cloudinaryApiKey || cloudinaryName),
+        isConfigured: Boolean(cloudinaryName),
+        statusText: cloudinaryName ? 'Aktiv' : 'Quraşdırılmayıb',
+        url: cloudinaryName ? `${cloudinaryName}.cloudinary.com` : 'api.cloudinary.com',
+        description: 'Məhsul şəkilləri, video və media fayllarının bulud hostinqi'
+      },
+      {
+        id: 'webhook',
+        name: 'Enterprise Webhook Secret Key',
+        keyDisplay: maskKey(webhookSecret || 'fallback_secret_key_for_dev'),
+        isConfigured: Boolean(webhookSecret),
+        statusText: 'Aktiv',
+        url: '/api/webhooks',
+        description: 'Xarici sistemlər (1C, Kuryer, Ödəniş) üçün təhlükəsiz imza açarı'
       },
       {
         id: 'gemini',
@@ -228,6 +240,15 @@ export async function getSystemApiIntegrations() {
         statusText: geminiKey ? 'Aktiv' : 'Quraşdırılmayıb',
         url: 'generativelanguage.googleapis.com',
         description: 'Ağıllı məhsul təsvirləri və Avtomatik SEO təklifləri motoru'
+      },
+      {
+        id: 'stripe',
+        name: 'Stripe Payment Gateway API',
+        keyDisplay: maskKey(stripeSecretKey),
+        isConfigured: Boolean(stripeSecretKey),
+        statusText: stripeSecretKey ? 'Aktiv' : 'Quraşdırılmayıb',
+        url: 'api.stripe.com',
+        description: 'Onlayn bank kartı ilə ödənişlərin qəbulu və iadə idarəetməsi'
       },
       {
         id: 'resend',

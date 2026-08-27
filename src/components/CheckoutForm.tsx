@@ -397,9 +397,9 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
 
     if (!termsAccepted) {
       errors.terms = dict.checkout?.validation_terms_required || t({
-        az: 'Sifariş üçün alış-veriş şərtlərini qəbul etməlisiniz.',
-        en: 'You must accept the terms and conditions to order.',
-        ru: 'Вы должны принять условия покупки для совершения заказа.'
+        az: 'Sifarişi tamamlamaq üçün İctimai Oferta və Qaytarılma Şərtlərini qəbul etməlisiniz.',
+        en: 'You must accept the Public Offer and Return Policy to complete your order.',
+        ru: 'Вы должны принять Публичную Оферту и Условия Возврата для завершения заказа.'
       });
     }
 
@@ -1210,21 +1210,93 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
           </div>
 
           {/* Terms checkbox */}
-          <div className="space-y-2.5">
+          <div className="space-y-2.5 bg-muted/20 p-3.5 rounded-2xl border border-border/80">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={termsAccepted}
                 onChange={(e) => setTermsAccepted(e.target.checked)}
-                className="h-4 w-4 mt-0.5 rounded border-border text-rubik-brand focus:ring-rubik-brand cursor-pointer"
+                className="h-4 w-4 mt-0.5 rounded border-border text-rubik-brand focus:ring-rubik-brand cursor-pointer shrink-0"
               />
-              <span className="text-xs text-muted-foreground leading-relaxed select-none">
-                {dict.checkout?.accept_terms || "İstifadə Şərtlərini qəbul edirəm"}
+              <span className="text-xs text-foreground/80 leading-relaxed select-none">
+                {locale === 'en' ? (
+                  <>
+                    By completing the order, I accept the{' '}
+                    <Link
+                      href={`/${locale}/pages/terms-of-service`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-rubik-brand font-bold underline hover:text-red-700"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Public Offer
+                    </Link>{' '}
+                    and{' '}
+                    <Link
+                      href={`/${locale}/pages/return-policy`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-rubik-brand font-bold underline hover:text-red-700"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Return Policy
+                    </Link>
+                    .
+                  </>
+                ) : locale === 'ru' ? (
+                  <>
+                    Оформляя заказ, я принимаю условия{' '}
+                    <Link
+                      href={`/${locale}/pages/terms-of-service`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-rubik-brand font-bold underline hover:text-red-700"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Публичной Оферты
+                    </Link>{' '}
+                    и{' '}
+                    <Link
+                      href={`/${locale}/pages/return-policy`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-rubik-brand font-bold underline hover:text-red-700"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Правил Возврата
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  <>
+                    Sifarişi tamamlamaqla{' '}
+                    <Link
+                      href={`/${locale}/pages/terms-of-service`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-rubik-brand font-bold underline hover:text-red-700"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      İctimai Oferta
+                    </Link>{' '}
+                    və{' '}
+                    <Link
+                      href={`/${locale}/pages/return-policy`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-rubik-brand font-bold underline hover:text-red-700"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Qaytarılma Şərtlərini
+                    </Link>{' '}
+                    qəbul edirəm.
+                  </>
+                )}
               </span>
             </label>
             {validationErrors.terms && (
               <p className="text-[10px] text-red-600 font-bold flex items-center gap-1 px-1">
-                <AlertCircle className="h-3 w-3" /> {validationErrors.terms}
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {validationErrors.terms}
               </p>
             )}
           </div>

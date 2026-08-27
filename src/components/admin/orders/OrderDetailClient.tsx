@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Edit, Save, FileText, Download, Printer, Truck, CheckCircle, Clock, XCircle, AlertCircle, ShoppingBag, Send, MessagesSquare, Box, ArrowRightLeft, MapPin, Receipt, CreditCard } from 'lucide-react';
-import { getOrderDetail, updateOrderStatus, updatePaymentStatus, updateOrderTracking, addOrderInternalNote } from '@/lib/actions/admin';
+import { ArrowLeft, Edit, Save, FileText, Download, Printer, Truck, CheckCircle, Clock, XCircle, AlertCircle, ShoppingBag, Send, MessagesSquare, Box, ArrowRightLeft, MapPin, Receipt, CreditCard, Mail } from 'lucide-react';
+import { getOrderDetail, updateOrderStatus, updatePaymentStatus, updateOrderTracking, addOrderInternalNote, resendOrderInvoiceEmail } from '@/lib/actions/admin';
+import ElectronicInvoiceModal from './ElectronicInvoiceModal';
 
 export default function OrderDetailClient({ orderId }: { orderId: string }) {
   const [loading, setLoading] = useState(true);
@@ -17,6 +18,8 @@ export default function OrderDetailClient({ orderId }: { orderId: string }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingTracking, setIsSavingTracking] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [isSendingInvoice, setIsSendingInvoice] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchOrder = async () => {
@@ -127,6 +130,27 @@ export default function OrderDetailClient({ orderId }: { orderId: string }) {
     minute: '2-digit'
   });
 
+  const handleDirectResendEmail = async () => {
+    if (!order?.email) {
+      alert('Sifarişdə qeyd edilmiş e-poçt ünvanı tapılmadı.');
+      return;
+    }
+    setIsSendingInvoice(true);
+    try {
+      const res = await resendOrderInvoiceEmail(orderId);
+      if (res.success) {
+        alert(res.message || 'Elektron invoys uğurla göndərildi.');
+        await fetchOrder();
+      } else {
+        alert('Xəta: ' + res.error);
+      }
+    } catch (err: any) {
+      alert('Xəta baş verdi: ' + err.message);
+    } finally {
+      setIsSendingInvoice(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
       
@@ -144,6 +168,13 @@ export default function OrderDetailClient({ orderId }: { orderId: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button 
+            type="button"
+            onClick={() => setShowInvoiceModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold rounded-xl transition-all border border-slate-700 shadow-sm"
+          >
+            <Receipt className="w-4 h-4 text-amber-400" /> Elektron Qəbz / İnvoys
+          </button>
           <button 
             disabled={isSaving}
             onClick={handleSaveAll}
@@ -363,13 +394,33 @@ export default function OrderDetailClient({ orderId }: { orderId: string }) {
           {/* Document Generator */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-soft-md">
             <h3 className="text-sm font-black text-white mb-4 uppercase tracking-wider flex items-center gap-2">
-              <Printer className="w-4 h-4 text-amber-500" /> Sənədlər & Çap
+              <Printer className="w-4 h-4 text-amber-500" /> Sənədlər & Elektron İnvoys
             </h3>
             
-            <div className="space-y-2">
-              <button onClick={() => window.print()} className="w-full flex items-center justify-between p-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors text-sm text-slate-300 font-medium">
-                <span className="flex items-center gap-2"><Receipt className="w-4 h-4" /> İnvoys (Çap Et)</span>
-                <Printer className="w-4 h-4 text-slate-500" />
+            <div className="space-y-2.5">
+              <button 
+                type="button"
+                onClick={() => setShowInvoiceModal(true)} 
+                className="w-full flex items-center justify-between p-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors text-sm text-slate-200 font-medium group cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" /> 
+                  <span>Elektron Qəbz / İnvoys (PDF)</span>
+                </span>
+                <Printer className="w-4 h-4 text-slate-500 group-hover:text-white" />
+              </button>
+
+              <button 
+                type="button"
+                onClick={handleDirectResendEmail}
+                disabled={isSendingInvoice}
+                className="w-full flex items-center justify-between p-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors text-sm text-slate-200 font-medium group cursor-pointer disabled:opacity-50"
+              >
+                <span className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" /> 
+                  <span>{isSendingInvoice ? 'Göndərilir...' : 'E-poçta Təkrar Göndər'}</span>
+                </span>
+                <Send className="w-4 h-4 text-slate-500 group-hover:text-white" />
               </button>
             </div>
           </div>
@@ -401,6 +452,15 @@ export default function OrderDetailClient({ orderId }: { orderId: string }) {
         </div>
 
       </div>
+
+      {/* Electronic Invoice Printable Modal */}
+      {showInvoiceModal && (
+        <ElectronicInvoiceModal 
+          order={order}
+          isOpen={showInvoiceModal}
+          onClose={() => setShowInvoiceModal(false)}
+        />
+      )}
     </div>
   );
 }

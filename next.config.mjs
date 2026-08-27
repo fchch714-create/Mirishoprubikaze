@@ -38,6 +38,50 @@ const nextConfig = {
 
     return config;
   },
+  async redirects() {
+    return [
+      {
+        source: '/oferta',
+        destination: '/az/pages/terms-of-service',
+        permanent: true,
+      },
+      {
+        source: '/qaytarilma',
+        destination: '/az/pages/return-policy',
+        permanent: true,
+      },
+      {
+        source: '/mexfilik',
+        destination: '/az/pages/privacy-policy',
+        permanent: true,
+      },
+      {
+        source: '/terms',
+        destination: '/az/pages/terms-of-service',
+        permanent: true,
+      },
+      {
+        source: '/return-policy',
+        destination: '/az/pages/return-policy',
+        permanent: true,
+      },
+      {
+        source: '/privacy-policy',
+        destination: '/az/pages/privacy-policy',
+        permanent: true,
+      },
+      {
+        source: '/returns',
+        destination: '/az/pages/return-policy',
+        permanent: true,
+      },
+      {
+        source: '/privacy',
+        destination: '/az/pages/privacy-policy',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

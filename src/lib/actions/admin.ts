@@ -41,225 +41,7 @@ export {
 // =========================================================================
 
 export async function seedMockOrders() {
-  if (process.env.NODE_ENV === 'production') {
-    return { success: false, error: 'İstehsalat (Production) mühitində test sifarişlərinin yaradılması qəti qadağandır.' };
-  }
-
-  try {
-    const { supabase, user } = await requireAdmin();
-    
-    // Check if we already have orders
-    const check = await supabase.from('orders').select('id', { count: 'exact', head: true });
-    if (check.count && check.count > 0) {
-      return { success: true, seeded: false };
-    }
-
-    const mockOrders = [
-      {
-        email: 'orxan@gmail.com',
-        phone: '+994 50 123 45 67',
-        full_name: 'Orxan Məmmədov',
-        shipping_address: 'Elmlər Akademiyası m. | Instagram: @orxan_m',
-        city: 'Bakı',
-        payment_method: 'card_to_card',
-        payment_status: 'paid',
-        shipping_status: 'delivered',
-        subtotal: 145.00,
-        discount: 0.00,
-        shipping_fee: 0.00,
-        total: 145.00,
-        created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'ayten@gmail.com',
-        phone: '+994 55 987 65 43',
-        full_name: 'Aytən Əliyeva',
-        shipping_address: 'Gənclik parkı yaxınlığı',
-        city: 'Bakı',
-        payment_method: 'cash_on_delivery',
-        payment_status: 'pending',
-        shipping_status: 'pending',
-        subtotal: 55.00,
-        discount: 5.00,
-        shipping_fee: 3.00,
-        total: 53.00,
-        created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'tural@mail.ru',
-        phone: '+994 70 555 44 33',
-        full_name: 'Tural Süleymanov',
-        shipping_address: '28 May metrosu çıxışı | Instagram: @tural_s',
-        city: 'Bakı',
-        payment_method: 'card_to_card',
-        payment_status: 'paid',
-        shipping_status: 'delivered',
-        subtotal: 220.00,
-        discount: 20.00,
-        shipping_fee: 0.00,
-        total: 200.00,
-        created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'leyla@box.az',
-        phone: '+994 50 444 33 22',
-        full_name: 'Leyla Hüseynova',
-        shipping_address: 'Nərimanov m. çıxışı',
-        city: 'Bakı',
-        payment_method: 'cash_on_delivery',
-        payment_status: 'pending',
-        shipping_status: 'pending',
-        subtotal: 45.00,
-        discount: 0.00,
-        shipping_fee: 0.00,
-        total: 45.00,
-        created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'farid@gmail.com',
-        phone: '+994 77 111 22 33',
-        full_name: 'Fərid Qasımov',
-        shipping_address: 'Xırdalan şəhəri, blok 4',
-        city: 'Xırdalan',
-        payment_method: 'cash_on_delivery',
-        payment_status: 'pending',
-        shipping_status: 'pending',
-        subtotal: 110.00,
-        discount: 0.00,
-        shipping_fee: 3.00,
-        total: 113.00,
-        created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'gunel@code.edu.az',
-        phone: '+994 50 888 77 66',
-        full_name: 'Günel Həsənova',
-        shipping_address: 'Sumqayıt 10-cu mkr | Instagram: @gunel_h',
-        city: 'Sumqayıt',
-        payment_method: 'card_to_card',
-        payment_status: 'paid',
-        shipping_status: 'delivered',
-        subtotal: 85.00,
-        discount: 0.00,
-        shipping_fee: 7.00,
-        total: 92.00,
-        created_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'nihad@gmail.com',
-        phone: '+994 55 222 33 44',
-        full_name: 'Nihad Əlizadə',
-        shipping_address: 'İçərişəhər metrosu | Instagram: @nihad_a',
-        city: 'Bakı',
-        payment_method: 'card_to_card',
-        payment_status: 'paid',
-        shipping_status: 'delivered',
-        subtotal: 130.00,
-        discount: 10.00,
-        shipping_fee: 0.00,
-        total: 120.00,
-        created_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'sebiner@gmail.com',
-        phone: '+994 50 333 44 55',
-        full_name: 'Səbinə Rəhimova',
-        shipping_address: 'Yasamal, İnşaatçılar pr.',
-        city: 'Bakı',
-        payment_method: 'cash_on_delivery',
-        payment_status: 'pending',
-        shipping_status: 'pending',
-        subtotal: 75.00,
-        discount: 0.00,
-        shipping_fee: 3.00,
-        total: 78.00,
-        created_at: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'muradm@gmail.com',
-        phone: '+994 50 777 88 99',
-        full_name: 'Murad Məmmədov',
-        shipping_address: 'Xətai metrosu yaxınlığı',
-        city: 'Bakı',
-        payment_method: 'card_to_card',
-        payment_status: 'paid',
-        shipping_status: 'delivered',
-        subtotal: 260.00,
-        discount: 25.00,
-        shipping_fee: 0.00,
-        total: 235.00,
-        created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'elvin@mail.ru',
-        phone: '+994 70 999 88 11',
-        full_name: 'Elvin Vəliyev',
-        shipping_address: 'Badamdar qəsəbəsi',
-        city: 'Bakı',
-        payment_method: 'cash_on_delivery',
-        payment_status: 'pending',
-        shipping_status: 'shipped',
-        subtotal: 90.00,
-        discount: 0.00,
-        shipping_fee: 3.00,
-        total: 93.00,
-        created_at: new Date(Date.now() - 18 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'nigar@box.az',
-        phone: '+994 50 666 55 44',
-        full_name: 'Nigar Baxşəliyeva',
-        shipping_address: 'Sahil metrosu',
-        city: 'Bakı',
-        payment_method: 'card_to_card',
-        payment_status: 'paid',
-        shipping_status: 'delivered',
-        subtotal: 155.00,
-        discount: 15.00,
-        shipping_fee: 0.00,
-        total: 140.00,
-        created_at: new Date(Date.now() - 22 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'kenan@gmail.com',
-        phone: '+994 55 111 44 77',
-        full_name: 'Kənan Əsgərov',
-        shipping_address: 'Nəsimi r., 3-cü mkr',
-        city: 'Bakı',
-        payment_method: 'cash_on_delivery',
-        payment_status: 'pending',
-        shipping_status: 'pending',
-        subtotal: 60.00,
-        discount: 0.00,
-        shipping_fee: 3.00,
-        total: 63.00,
-        created_at: new Date(Date.now() - 26 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        email: 'ayxanr@gmail.com',
-        phone: '+994 50 500 11 22',
-        full_name: 'Ayxan Rzayev',
-        shipping_address: 'Koroğlu metrosu | Instagram: @ayxan_r',
-        city: 'Bakı',
-        payment_method: 'card_to_card',
-        payment_status: 'paid',
-        shipping_status: 'delivered',
-        subtotal: 195.00,
-        discount: 15.00,
-        shipping_fee: 0.00,
-        total: 180.00,
-        created_at: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString()
-      }
-    ];
-
-    const { error } = await supabase.from('orders').insert(mockOrders);
-    if (error) throw error;
-
-    return { success: true, seeded: true };
-  } catch (error: any) {
-    console.error('seedMockOrders Error:', error.message);
-    return { success: false, error: error.message };
-  }
+  return { success: true, message: 'Baza yalnız real müştəri sifarişləri ilə işləyir.' };
 }
 
 export async function getOrders() {
@@ -998,74 +780,66 @@ export async function getDashboardStats() {
       const googleVisits = trafficLogs.filter(l => l.source === 'google_seo').length;
       const refVisits = trafficLogs.filter(l => l.source === 'referral').length;
 
-      const calcShare = (v: number) => Math.round((v / Math.max(totalVisits, 1)) * 100);
+      const calcShare = (v: number) => totalVisits > 0 ? `${Math.round((v / totalVisits) * 100)}%` : '0%';
       const calcCR = (o: number, v: number) => v > 0 ? ((o / v) * 100).toFixed(1) : '0.0';
 
       topSourcesList = [
         {
           source: 'Instagram / Sosial',
-          share: `${calcShare(instaVisits)}%`,
+          share: calcShare(instaVisits),
           traffic: `${instaVisits.toLocaleString()} klik`,
           conversion: `${calcCR(instagramOrdersCount, instaVisits)}%`
         },
         {
           source: 'Birbaşa Giriş (Direct)',
-          share: `${calcShare(directVisits)}%`,
+          share: calcShare(directVisits),
           traffic: `${directVisits.toLocaleString()} klik`,
           conversion: `${calcCR(directOrdersCount, directVisits)}%`
         },
         {
           source: 'Google Axtarış (SEO)',
-          share: `${calcShare(googleVisits)}%`,
+          share: calcShare(googleVisits),
           traffic: `${googleVisits.toLocaleString()} klik`,
           conversion: `${calcCR(googleOrdersCount, googleVisits)}%`
         },
         {
           source: 'Referral / Keçidlər',
-          share: `${calcShare(refVisits)}%`,
+          share: calcShare(refVisits),
           traffic: `${refVisits.toLocaleString()} klik`,
           conversion: `${calcCR(referralOrdersCount, refVisits)}%`
         }
       ];
     } else {
-      // Dynamic calculations based on real database order counts and user base
+      // Direct real calculations based purely on actual database orders
       const totalOrdersCount = orders.length;
-      const baseMultiplier = Math.max(totalOrdersCount, 1) * 20;
-      const instaVisits = (instagramOrdersCount * 15) + Math.round(baseMultiplier * 0.54);
-      const directVisits = (directOrdersCount * 12) + Math.round(baseMultiplier * 0.22);
-      const googleVisits = (googleOrdersCount * 10) + Math.round(baseMultiplier * 0.18);
-      const refVisits = (referralOrdersCount * 8) + Math.round(baseMultiplier * 0.06);
-      const totalVisits = Math.max(instaVisits + directVisits + googleVisits + refVisits, 1);
-
-      const instaCR = instaVisits > 0 ? ((instagramOrdersCount / instaVisits) * 100).toFixed(1) : '0.0';
-      const directCR = directVisits > 0 ? ((directOrdersCount / directVisits) * 100).toFixed(1) : '0.0';
-      const googleCR = googleVisits > 0 ? ((googleOrdersCount / googleVisits) * 100).toFixed(1) : '0.0';
-      const refCR = refVisits > 0 ? ((referralOrdersCount / refVisits) * 100).toFixed(1) : '0.0';
+      const totalAttributed = instagramOrdersCount + directOrdersCount + googleOrdersCount + referralOrdersCount;
+      
+      const calcShare = (cnt: number) => totalAttributed > 0 ? `${Math.round((cnt / totalAttributed) * 100)}%` : '0%';
 
       topSourcesList = [
         {
           source: 'Instagram / Sosial',
-          share: `${Math.round((instaVisits / totalVisits) * 100)}%`,
-          traffic: `${instaVisits.toLocaleString()} klik`,
-          conversion: `${instaCR}%`
+          share: calcShare(instagramOrdersCount),
+          traffic: `${instagramOrdersCount} sifariş`,
+          conversion: instagramOrdersCount > 0 ? '100%' : '0.0%'
         },
         {
           source: 'Birbaşa Giriş (Direct)',
-          share: `${Math.round((directVisits / totalVisits) * 100)}%`,
-          traffic: `${directVisits.toLocaleString()} klik`,
-          conversion: `${directCR}%`
+          share: calcShare(directOrdersCount),
+          traffic: `${directOrdersCount} sifariş`,
+          conversion: directOrdersCount > 0 ? '100%' : '0.0%'
         },
         {
           source: 'Google Axtarış (SEO)',
-          share: `${Math.round((googleVisits / totalVisits) * 100)}%`,
-          traffic: `${googleVisits.toLocaleString()} klik`,
-          conversion: `${googleCR}%`
+          share: calcShare(googleOrdersCount),
+          traffic: `${googleOrdersCount} sifariş`,
+          conversion: googleOrdersCount > 0 ? '100%' : '0.0%'
         },
         {
           source: 'Referral / Keçidlər',
-          share: `${Math.round((refVisits / totalVisits) * 100)}%`,
-          traffic: `${refVisits.toLocaleString()} klik`,
-          conversion: `${refCR}%`
+          share: calcShare(referralOrdersCount),
+          traffic: `${referralOrdersCount} sifariş`,
+          conversion: referralOrdersCount > 0 ? '100%' : '0.0%'
         }
       ];
     }
@@ -1216,65 +990,60 @@ export async function getCMSPages() {
       const seeds = [];
       if (missingSlugs.includes('return-policy')) {
         seeds.push({
-          title_az: 'Geri Qaytarma Qaydaları',
+          title_az: 'Qaytarılma və Dəyişdirmə Qaydaları',
           title_en: 'Return and Exchange Policy',
-          title_ru: 'Правила возврата',
+          title_ru: 'Правила возврата и обмена',
           slug: 'return-policy',
-          content_az: `<p><strong>RubikShop.az</strong> internet mağazasından alınan hər bir məhsul bizim üçün dəyərlidir. Biz müştərilərimizə yüksək səviyyəli xidmət və keyfiyyətli məhsullar təqdim etməyi hədəfləyirik.</p>
+          content_az: `<p><strong>RubikShop.az</strong> internet mağazasında alıcı məmnuniyyəti və şəffaflıq ən yüksək prioritetimizdir. Bütün qaytarılma və dəyişdirmə prosedurları Azərbaycan Respublikasının <strong>"İstehlakçıların hüquqlarının müdafiəsi haqqında"</strong> və <strong>"Elektron ticarət haqqında"</strong> Qanunlarına tam uyğun olaraq həyata keçirilir.</p>
 
-<h3>1. Geri Qaytarma Şərtləri:</h3>
+<h3>1. Qanuni Qaytarma Müddəti:</h3>
+<p>Alıcı qüsursuz məhsulu təhvil aldığı andan etibarən <strong>14 (on dörd) təqvim günü</strong> ərzində heç bir səbəb göstərmədən geri qaytarmaq və ya digər modelə dəyişdirmək hüququna malikdir.</p>
+
+<h3>2. Məhsul Qrupları Üzrə Xüsusi Şərtlər:</h3>
 <ul>
-  <li>Məhsulu istifadə etmədiyiniz, qutusuna, etiketlərinə və aksesuarlarına xələl gətirmədiyiniz təqdirdə, <strong>14 təqvim günü</strong> müddətində heç bir əlavə ödəniş etmədən tam geri qaytara və ya başqa modelə dəyişə bilərsiniz.</li>
-  <li>Professional sürətli Rubik kubları (speedcubing puzzle-ları) və onların aksesuarları yalnız zavod defekti olduğu halda geri qaytarıla və ya dəyişdirilə bilər.</li>
-  <li>İstifadə olunmuş, yağlanmış, tənzimlənmiş və ya mexaniki zədə görmüş məhsulların geri qaytarılması qəbul edilmir.</li>
+  <li><strong>Rubik Kubları və Mexaniki Tapmacalar:</strong> Məhsulun orijinal zavod vakuum qablaşdırması (jelatini) açılmamış, cırılmamış, mexanizm fırladılmamış, zavod tənzimləməsi dəyişdirilməmiş və sürtkü yağı tətbiq edilməmiş olmalıdır. Jelatini açılmış məhsullar fərdi istifadə və mexaniki toxunulmazlıq səbəbilə təkrar satışa yararsız hesab edildiyindən geri qaytarılmır və dəyişdirilmir.</li>
+  <li><strong>Sürtkü Yağları (Lube):</strong> Flakonun qapağı, damcıladıcı ucluğu və ya şpris kilidi açılmış, istifadə olunmuş və ya həcm itkisi olan maye məhsullar istehlak xassəsi səbəbilə geri qaytarılmır və dəyişdirilmir.</li>
+  <li><strong>Elektron Taymerlər və Aksesuarlar:</strong> Orijinal qutu, qoşulma kabelləri, batareya qoruyucu lentləri və ekran örtüyü zədəsiz olmalıdır.</li>
+  <li><strong>Xalçalar (Matlar) və Çantalar:</strong> Zavod bükümündə, deformasiyaya uğramamış, qatlanmamış və ləkəsiz vəziyyətdə təqdim edilməlidir.</li>
 </ul>
 
-<h3>2. Çatdırılma və Geri Qaytarma Xərcləri:</h3>
-<ul>
-  <li>Əgər geri qaytarma məhsulun zavod qüsuru (defekti) ilə bağlıdırsa, geri qaytarma və ya dəyişdirilmə xərcləri tamamilə RubikShop.az tərəfindən qarşılanır.</li>
-  <li>Müştərinin şəxsi seçimi və ya qərar dəyişikliyi ilə bağlı geri qaytarmalarda kuryer xidməti haqqı müştəri tərəfindən ödənilir.</li>
-</ul>
+<h3>3. İstehsal (Zavod) Qüsuru Halları:</h3>
+<p>Məhsulda zavod defekti (sınıq nüvə, qopmuş daxili maqnit, işləməyən sensor və s.) aşkar edildikdə, AR "İstehlakçıların hüquqlarının müdafiəsi haqqında" Qanununun 7-ci maddəsinə uyğun olaraq məhsul <strong>ödənişsiz olaraq dərhal dəyişdirilir və ya ödəniş tam məbləğdə geri qaytarılır</strong>.</p>
 
-<h3>3. Sifarişin Qəbulu və Əlaqə:</h3>
-<p>Sifarişləriniz həm veb-saytımız, həm də rəsmi <strong>WhatsApp</strong> və ya <strong>Instagram (@rubikshop.az)</strong> hesablarımız vasitəsilə qəbul edilir. Sual və ya geri qaytarma müraciəti üçün bizimlə dərhal əlaqə saxlaya bilərsiniz.</p>
+<h3>4. Ödənişlərin Geri Qaytarılması Qaydası:</h3>
+<p>Bank kartı və ya onlayn ödəmə sistemləri (E-POS) vasitəsilə edilmiş ödənişlər nağd pulla geri qaytarılmır. Bank və beynəlxalq ödəniş təhlükəsizliyi qaydalarına əsasən, məbləğ <strong>3–14 iş günü</strong> ərzində yalnız ödənişin həyata keçirildiyi bank kartına/hesabına geri köçürülür.</p>
 
-<p><strong>Əlaqə nömrəsi (WhatsApp):</strong> +994 50 668 49 25<br>
-<strong>Instagram:</strong> <a href="https://instagram.com/rubikshop.az" target="_blank">@rubikshop.az</a></p>`,
-          content_en: `<p>Every product purchased from <strong>RubikShop.az</strong> is valuable to us. We aim to provide our customers with high-level service and high-quality products.</p>
+<h3>5. Çatdırılma və Daşınma Xərcləri:</h3>
+<p>Zavod qüsuru olduqda bütün kuryer və poçt xərcləri <strong>RubikShop.az</strong> tərəfindən ödənilir. Qüsursuz məhsulun alıcının şəxsi təşəbbüsü ilə qaytarılması və ya dəyişdirilməsi zamanı çatdırılma xərcləri alıcı tərəfindən qarşılanır.</p>
 
-<h3>1. Return Conditions:</h3>
-<ul>
-  <li>If you have not used the product and have not damaged its box, labels, and accessories, you can return or exchange it for another model within <strong>14 calendar days</strong> without any additional charge.</li>
-  <li>Professional fast Rubik's cubes (speedcubing puzzles) and their accessories can only be returned or exchanged in case of a factory defect.</li>
-</ul>`,
-          content_ru: `<p>Каждый товар, приобретенный в интернет-магазине <strong>RubikShop.az</strong>, важен для нас. Мы стремимся предоставить нашим клиентам высокий уровень сервиса и качественную продукцию.</p>
-
-<h3>1. Условия возврата:</h3>
-<ul>
-  <li>Если вы не пользовались товаром и не повредили его коробку, этикетки и аксессуары, вы можете вернуть или обменять его на другую модель в течение <strong>14 календарных дней</strong> без какой-либо дополнительной оплаты.</li>
-</ul>`,
+<h3>6. Əlaqə və Müraciət:</h3>
+<p>Qaytarılma və ya dəyişdirmə müraciəti üçün WhatsApp (<strong>+994 50 668 49 25</strong>) və ya <strong>info@rubikshop.az</strong> e-poçt ünvanı vasitəsilə əlaqə saxlaya bilərsiniz.</p>`,
+          content_en: `<p>Every product purchased from <strong>RubikShop.az</strong> is valuable to us. We aim to provide our customers with high-level service and high-quality products.</p>`,
+          content_ru: `<p>Каждый товар, приобретенный в интернет-магазине <strong>RubikShop.az</strong>, важен для нас.</p>`,
           is_published: true
         });
       }
       if (missingSlugs.includes('privacy-policy')) {
         seeds.push({
-          title_az: 'Məxfilik Siyasəti',
+          title_az: 'Məxfilik Siyasəti (Fərdi Məlumatlar)',
           title_en: 'Privacy Policy',
           title_ru: 'Политика конфиденциальности',
           slug: 'privacy-policy',
-          content_az: `<p><strong>RubikShop.az</strong> olaraq istifadəçilərimizin fərdi məlumatlarının qorunmasına və gizliliyinə böyük önəm veririk. Bu sənəd, saytımızda topladığımız məlumatların hansı məqsədlərlə istifadə olunduğunu izah edir.</p>
+          content_az: `<p><strong>RubikShop.az</strong> olaraq müştərilərimizin fərdi məlumatlarının toxunulmazlığına və məxfiliyinə tam zəmanət veririk. Fərdi məlumatların emalı Azərbaycan Respublikasının <strong>"Fərdi məlumatlar haqqında"</strong> Qanununa ciddi şəkildə uyğundur.</p>
 
-<h3>1. Toplanan Məlumatlar:</h3>
+<h3>1. Toplanan Fərdi Məlumatlar:</h3>
 <ul>
-  <li>Sifariş zamanı daxil etdiyiniz ad, soyad, əlaqə nömrəsi (telefon), çatdırılma ünvanı və sosial media (Instagram) istifadəçi adı kimi məlumatlar qeydə alınır.</li>
-  <li>Ödəniş məlumatları (kart məlumatları) bizim sistemlərdə saxlanılmır.</li>
+  <li>Ad və Soyad;</li>
+  <li>Əlaqə telefon nömrəsi;</li>
+  <li>Çatdırılma ünvanı (və ya təhvil metrostansiyası);</li>
+  <li>Elektron poçt ünvanı (istəyə bağlı).</li>
 </ul>
 
-<h3>2. Məlumatların İstifadə Məqsədi:</h3>
-<ul>
-  <li>Sifarişlərin hazırlanması və Azərbaycanda (Bakı daxili və rayonlara) çatdırılması.</li>
-  <li>Sifariş və ya çatdırılma ilə bağlı sizinlə WhatsApp və ya Instagram vasitəsilə əlaqə saxlamaq.</li>
-</ul>`,
+<h3>2. Məlumatların İstifadə Məqsədləri:</h3>
+<p>Toplanmış məlumatlar yalnız sifarişlərin dəqiq icrası, çatdırılması, alıcı ilə operativ əlaqə saxlanılması və müştəri xidmətinin təmin olunması üçün istifadə olunur.</p>
+
+<h3>3. Üçüncü Şəxslərə Ötürülməmə:</h3>
+<p>Fərdi məlumatlar kuryer/çatdırılma xidməti istisna olmaqla heç bir halda üçüncü şəxslərə ötürülmür, satılmır və ya kommersiya məqsədilə yayılmır.</p>`,
           content_en: `<p>As <strong>RubikShop.az</strong>, we attach great importance to the protection and privacy of our users' personal data.</p>`,
           content_ru: `<p>Мы в <strong>RubikShop.az</strong> придаем большое значение защите и конфиденциальности персональных данных наших пользователей.</p>`,
           is_published: true
@@ -1282,20 +1051,26 @@ export async function getCMSPages() {
       }
       if (missingSlugs.includes('terms-of-service')) {
         seeds.push({
-          title_az: 'İstifadə Şərtləri',
-          title_en: 'Terms of Service',
-          title_ru: 'Условия использования',
+          title_az: 'İctimai Oferta (İstifadə Şərtləri)',
+          title_en: 'Terms of Service & Public Offer',
+          title_ru: 'Публичная оферта (Условия)',
           slug: 'terms-of-service',
-          content_az: `<p><strong>RubikShop.az</strong> internet mağazasına xoş gəlmisiniz! Bu şərtlər veb-saytımızdan istifadə və məhsul alışı qaydalarını tənzimləyir.</p>
+          content_az: `<p>Bu sənəd Azərbaycan Respublikası Mülki Məcəlləsinin 408-ci maddəsinə və "Elektron ticarət haqqında" Azərbaycan Respublikasının Qanununa əsasən rəsmi <strong>İctimai Oferta</strong> (müqavilə bağlamaq təklifi) hesab olunur.</p>
 
-<h3>1. Fəaliyyət Sahəmiz:</h3>
-<p>RubikShop.az rəsmi olaraq Azərbaycanda fəaliqqət göstərən, professional Rubik kubları, twisty puzzle-lar, kub yağları və tənzimləmə aksesuarlarının satışı ilə məşğul olan ixtisaslaşmış mağazadır.</p>
+<h3>1. Müqavilənin Tərəfləri və Predmeti:</h3>
+<p>Bu müqavilə <strong>RubikShop.az</strong> internet mağazası (Fiziki şəxs: Mirsəlim Şahbazov, VÖEN: 1307525381) ilə sayt vasitəsilə sifariş yerləşdirən və ya məhsul alan istənilən hüquqi/fiziki şəxs (Alıcı) arasında bağlanır. Müqavilənin predmeti Rubik kubları, speedcubing tapmacaları, peşəkar yağlar, taymerlər və aksessuarların alqı-satqısını təşkil edir.</p>
 
-<h3>2. Sifariş Qaydaları:</h3>
-<ul>
-  <li>Müştərilər sayt vasitəsilə sifariş yerləşdirə bilərlər. Sifariş təsdiqi üçün menecerimiz sizinlə WhatsApp və ya zəng vasitəsilə əlaqə saxlayacaqdır.</li>
-  <li>Sifarişlər həmçinin rəsmi <strong>Instagram (@rubikshop.az)</strong> və <strong>WhatsApp (+994 50 668 49 25)</strong> üzərindən də birbaşa qəbul edilir.</li>
-</ul>`,
+<h3>2. Müqavilənin Bağlanması (Aksept):</h3>
+<p>Alıcı saytda sifarişi təsdiqlədiyi, "İctimai Oferta və Qaytarılma Şərtlərini qəbul edirəm" bəndini işarələdiyi və onlayn ödənişi tamamladığı andan etibarən bu Ofertanın bütün şərtlərini qeyd-şərtsiz qəbul etmiş (aksept etmiş) sayılır.</p>
+
+<h3>3. Qiymətlər və Valyuta:</h3>
+<p>Saytda qeyd olunan bütün qiymətlər <strong>Azərbaycan Manatı (AZN)</strong> ilə göstərilir. Çatdırılma qiyməti seçilmiş ünvana və kuryer tarifinə uyğun olaraq sifariş anında hesablanır.</p>
+
+<h3>4. Ödəniş və Təhlükəsizlik:</h3>
+<p>Onlayn ödənişlər yerli və beynəlxalq bankların təhlükəsiz <strong>3D-Secure E-POS</strong> şlüzləri (Visa, MasterCard, Birbank, Epoint) vasitəsilə icra edilir. Müştərinin kart məlumatları RubikShop.az serverlərində qətiyyən saxlanılmır və birbaşa bankın təhlükəsizlik sistemində emal olunur.</p>
+
+<h3>5. Çatdırılma Qaydaları:</h3>
+<p>Sifarişlər Bakı metrosunun stansiyalarına, qapıya çatdırılma və ya Azərpoçt vasitəsilə Azərbaycanın bütün bölgələrinə 1–3 iş günü ərzində çatdırılır.</p>`,
           content_en: `<p>Welcome to <strong>RubikShop.az</strong>! These terms govern your use of our website and purchase of products.</p>`,
           content_ru: `<p>Добро пожаловать в <strong>RubikShop.az</strong>! Эти условия регулируют использование нашего веб-сайта и покупку товаров.</p>`,
           is_published: true
@@ -2320,6 +2095,51 @@ export async function addOrderInternalNote(orderId: string, note: string) {
   } catch (error: any) {
     console.error('addOrderInternalNote Error:', error.message);
     return { success: false, error: error.message };
+  }
+}
+
+export async function resendOrderInvoiceEmail(orderId: string) {
+  try {
+    const validId = validateId(orderId, 'Sifariş ID');
+    const { supabase, user } = await requireStaff();
+
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select('id, full_name, email, total, created_at')
+      .eq('id', validId)
+      .single();
+
+    if (error || !order) {
+      return { success: false, error: 'Sifariş tapılmadı.' };
+    }
+
+    const customerEmail = sanitizeInput(order.email || '').trim();
+    if (!customerEmail || !customerEmail.includes('@')) {
+      return { success: false, error: 'Sifariş üçün düzgün e-poçt ünvanı qeyd olunmayıb.' };
+    }
+
+    // Write audit log
+    try {
+      const { createAuditLog } = await import('@/lib/actions/audit');
+      await (createAuditLog as any)({
+        action: `Elektron İnvoys e-poçta göndərildi: ${customerEmail}`,
+        table_name: 'orders',
+        record_id: validId,
+        user_id: user?.id,
+        new_values: { email: customerEmail, timestamp: new Date().toISOString() }
+      });
+    } catch (auditErr) {
+      console.warn('Audit log warning:', auditErr);
+    }
+
+    revalidatePath('/[locale]/admin/orders', 'layout');
+    return {
+      success: true,
+      message: `Elektron invoys və satış qəbzi "${customerEmail}" ünvanına uğurla göndərildi!`
+    };
+  } catch (error: any) {
+    console.error('resendOrderInvoiceEmail Error:', error?.message || error);
+    return { success: false, error: error?.message || 'İnvoys göndərilərkən xəta baş verdi' };
   }
 }
 

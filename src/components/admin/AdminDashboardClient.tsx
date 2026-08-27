@@ -39,14 +39,7 @@ import {
   Cell
 } from 'recharts';
 
-// Top Sources Data
-const topSources = [
-  { source: 'Instagram / Sosial', share: '54%', traffic: '12,450', conversion: '4.8%' },
-  { source: 'Birbaşa Giriş (Direct)', share: '22%', traffic: '5,100', conversion: '3.9%' },
-  { source: 'Google Axtarış (SEO)', share: '18%', traffic: '4,200', conversion: '2.5%' },
-  { source: 'Referral / Keçidlər', share: '6%', traffic: '1,400', conversion: '1.2%' }
-];
-
+// Dashboard Client Interface
 interface AdminDashboardProps {
   stats: {
     totalSales: number;
@@ -492,20 +485,24 @@ export default function AdminDashboardClient({ stats, recentOrders }: AdminDashb
             </div>
 
             <div className="space-y-4">
-              {topSources.map((s) => (
-                <div key={s.source} className="flex justify-between items-center text-xs">
-                  <div className="space-y-0.5">
-                    <span className="font-bold text-slate-200 block">{s.source}</span>
-                    <span className="text-[10px] text-slate-500">{s.traffic} klik • CR {s.conversion}</span>
+              {(stats.topSources && stats.topSources.length > 0) ? (
+                stats.topSources.map((s) => (
+                  <div key={s.source} className="flex justify-between items-center text-xs">
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-slate-200 block">{s.source}</span>
+                      <span className="text-[10px] text-slate-500">{s.traffic} • CR {s.conversion}</span>
+                    </div>
+                    <span className="font-mono text-white font-black bg-slate-950 px-2 py-1 rounded-xl border border-slate-800">{s.share}</span>
                   </div>
-                  <span className="font-mono text-white font-black bg-slate-950 px-2 py-1 rounded-xl border border-slate-800">{s.share}</span>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div className="text-slate-400 text-xs py-6 text-center">Trafik loqu tapılmadı</div>
+              )}
             </div>
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-800 text-[10px] text-slate-500 text-center leading-relaxed">
-            İnteqrasiya olunmuş Google Analytics-4 üzərindən gələn verilənlər.
+            Supabase real-time analitika və sifariş kanalları üzərindən canlı hesablanan verilənlər.
           </div>
         </div>
 

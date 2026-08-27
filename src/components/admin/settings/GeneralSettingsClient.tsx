@@ -8,7 +8,13 @@ export default function GeneralSettingsClient() {
   const [storeName, setStoreName] = useState('RubikShop.az');
   const [contactEmail, setContactEmail] = useState('info@rubikshop.az');
   const [contactPhone, setContactPhone] = useState('+994 50 668 49 25');
-  const [address, setAddress] = useState('Bakı şəhəri...');
+  const [address, setAddress] = useState('Bakı şəhəri, Azərbaycan');
+
+  // Legal & Banking Compliance Requisites (AR E-Commerce & Bank Audit)
+  const [legalOwnerName, setLegalOwnerName] = useState('');
+  const [legalVoen, setLegalVoen] = useState('');
+  const [legalActivityCode, setLegalActivityCode] = useState('47.91.0');
+  const [legalAddress, setLegalAddress] = useState('');
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,6 +31,11 @@ export default function GeneralSettingsClient() {
           if (res.data.contactEmail) setContactEmail(res.data.contactEmail);
           if (res.data.contactPhone) setContactPhone(res.data.contactPhone);
           if (res.data.address) setAddress(res.data.address);
+
+          if (res.data.legalOwnerName) setLegalOwnerName(res.data.legalOwnerName);
+          if (res.data.legalVoen) setLegalVoen(res.data.legalVoen);
+          if (res.data.legalActivityCode) setLegalActivityCode(res.data.legalActivityCode);
+          if (res.data.legalAddress) setLegalAddress(res.data.legalAddress);
         }
       } catch (err: any) {
         console.error(err);
@@ -44,11 +55,15 @@ export default function GeneralSettingsClient() {
         storeName,
         contactEmail,
         contactPhone,
-        address
+        address,
+        legalOwnerName,
+        legalVoen,
+        legalActivityCode,
+        legalAddress
       };
       const res = await updateSettings('general', payload);
       if (res.success) {
-        setSuccessMsg('Ümumi tənzimləmələr uğurla yadda saxlanıldı!');
+        setSuccessMsg('Ümumi və hüquqi tənzimləmələr uğurla yadda saxlanıldı!');
       } else {
         setErrorMsg(res.error || 'Xəta baş verdi');
       }
@@ -156,6 +171,66 @@ export default function GeneralSettingsClient() {
                   <ImageIcon className="w-5 h-5 mb-2" />
                   <span className="text-[10px] font-bold uppercase tracking-wider">32x32 ICO</span>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Legal Requisites & Bank Compliance Section */}
+          <div className="mt-8 pt-8 border-t border-slate-800 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-black text-amber-400 uppercase tracking-wider">
+                  Hüquqi Rekvizitlər və Sahibkar Məlumatları (AR Qanunvericiliyi & Bank Tələbləri)
+                </h4>
+                <p className="text-xs text-slate-400 mt-1">
+                  Bu məlumatlar &quot;Elektron ticarət haqqında&quot; AR Qanununun 5.1-ci maddəsinə və bankların E-POS monitorinqinə uyğun olaraq Footer və İctimai Oferta hissəsində görünür.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Fərdi Sahibkar (Ad Soyad Ata adı)</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 text-sm" 
+                  value={legalOwnerName} 
+                  onChange={(e) => setLegalOwnerName(e.target.value)}
+                  placeholder="Məs: Mirsəlim Şahbazov"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2">VÖEN Nömrəsi</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-slate-950 border border-slate-800 text-white font-mono rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 text-sm" 
+                  value={legalVoen} 
+                  onChange={(e) => setLegalVoen(e.target.value)}
+                  placeholder="Məs: 1307525381"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Fəaliyyət Növü Kodu</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-slate-950 border border-slate-800 text-white font-mono rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 text-sm" 
+                  value={legalActivityCode} 
+                  onChange={(e) => setLegalActivityCode(e.target.value)}
+                  placeholder="47.91.0"
+                />
+              </div>
+
+              <div className="sm:col-span-2 md:col-span-3">
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Hüquqi / Faktiki Ünvan</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 text-sm" 
+                  value={legalAddress} 
+                  onChange={(e) => setLegalAddress(e.target.value)}
+                  placeholder="Bakı şəhəri, Azərbaycan"
+                />
               </div>
             </div>
           </div>

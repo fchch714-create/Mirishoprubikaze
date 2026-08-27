@@ -23,6 +23,12 @@ export function Footer({ dict, locale }: FooterProps) {
   const [phone, setPhone] = React.useState('+994 50 668 49 25');
   const [emailVal, setEmailVal] = React.useState('info@rubikshop.az');
   const [addressVal, setAddressVal] = React.useState('Bakı şəhəri, Azərbaycan');
+  
+  // Legal Requisites State (AR E-Commerce & Bank Compliance)
+  const [legalOwnerName, setLegalOwnerName] = React.useState('');
+  const [legalVoen, setLegalVoen] = React.useState('');
+  const [legalActivityCode, setLegalActivityCode] = React.useState('47.91.0');
+  const [legalAddress, setLegalAddress] = React.useState('');
 
   const t = (obj: { az: string; en: string; ru: string }) => {
     return obj[locale as keyof typeof obj] || obj.az;
@@ -44,6 +50,11 @@ export function Footer({ dict, locale }: FooterProps) {
           }
           if (val.contactEmail) setEmailVal(val.contactEmail);
           if (val.address) setAddressVal(val.address);
+          
+          if (val.legalOwnerName) setLegalOwnerName(val.legalOwnerName);
+          if (val.legalVoen) setLegalVoen(val.legalVoen);
+          if (val.legalActivityCode) setLegalActivityCode(val.legalActivityCode);
+          if (val.legalAddress) setLegalAddress(val.legalAddress);
         }
       } catch (err: any) {
         console.warn('Could not load footer settings, using default:', err?.message || err);
@@ -175,24 +186,24 @@ export function Footer({ dict, locale }: FooterProps) {
 
         {/* Support & Policies column */}
         <div className="space-y-4">
-          <h4 className="text-sm font-bold text-[#17181C] uppercase tracking-wider">{dict.footer?.support_policies || (locale === 'en' ? "Support & Policies" : (locale === 'ru' ? "Поддержка и Условия" : "Dəstək və Şərtlər"))}</h4>
+          <h4 className="text-sm font-bold text-[#17181C] uppercase tracking-wider">{dict.footer?.support_policies || (locale === 'en' ? "Support & Legal" : (locale === 'ru' ? "Поддержка и Условия" : "Hüquqi və Şərtlər"))}</h4>
           <ul className="space-y-2.5 text-xs md:text-sm">
             <li>
               <Link href={`/${locale}/pages/terms-of-service`} className="text-[#374151] hover:text-[#D8232A] font-medium transition-colors flex items-center gap-1.5">
                 <ShieldCheck className="h-4 w-4 text-[#16A34A]" />
-                <span>{dict.footer?.terms_of_service || (locale === 'en' ? "Terms of Service" : (locale === 'ru' ? "Условия Использования" : "İstifadə Şərtləri"))}</span>
-              </Link>
-            </li>
-            <li>
-              <Link href={`/${locale}/pages/privacy-policy`} className="text-[#374151] hover:text-[#D8232A] font-medium transition-colors flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-[#16A34A]" />
-                <span>{dict.footer?.privacy_policy || (locale === 'en' ? "Privacy Policy" : (locale === 'ru' ? "Политика Конфиденциальности" : "Məxfilik Siyasəti"))}</span>
+                <span>{locale === 'en' ? "Public Offer & Terms" : (locale === 'ru' ? "Публичная Оферта и Условия" : "İctimai Oferta (İstifadə Şərtləri)")}</span>
               </Link>
             </li>
             <li>
               <Link href={`/${locale}/pages/return-policy`} className="text-[#374151] hover:text-[#D8232A] font-medium transition-colors flex items-center gap-1.5">
                 <ShieldCheck className="h-4 w-4 text-[#16A34A]" />
-                <span>{dict.footer?.return_policy || (locale === 'en' ? "Return Policy" : (locale === 'ru' ? "Правила Возврата" : "Geri Qaytarma Qaydaları"))}</span>
+                <span>{locale === 'en' ? "Return and Exchange Policy" : (locale === 'ru' ? "Правила Возврата и Обмена" : "Qaytarılma və Dəyişdirmə Qaydaları")}</span>
+              </Link>
+            </li>
+            <li>
+              <Link href={`/${locale}/pages/privacy-policy`} className="text-[#374151] hover:text-[#D8232A] font-medium transition-colors flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 text-[#16A34A]" />
+                <span>{locale === 'en' ? "Privacy Policy (Personal Data)" : (locale === 'ru' ? "Политика Конфиденциальности" : "Məxfilik Siyasəti")}</span>
               </Link>
             </li>
           </ul>
@@ -204,7 +215,7 @@ export function Footer({ dict, locale }: FooterProps) {
           <ul className="space-y-3.5 text-xs md:text-sm text-[#374151]">
             <li className="flex items-start gap-2.5">
               <MapPin className="h-5 w-5 text-[#D8232A] shrink-0" />
-              <span>{addressVal}</span>
+              <span>{legalAddress || addressVal}</span>
             </li>
             <li className="flex items-center gap-2.5">
               <Mail className="h-4 w-4 text-[#374151] shrink-0" />
@@ -212,14 +223,49 @@ export function Footer({ dict, locale }: FooterProps) {
             </li>
             <li className="flex items-center gap-2.5">
               <Phone className="h-4 w-4 text-[#16A34A] shrink-0" />
-              <a href={`tel:${phone}`} className="hover:text-[#D8232A] transition-colors">{phone}</a>
+              <a href={`tel:${phone}`} className="hover:text-[#D8232A] transition-colors font-mono">{phone}</a>
             </li>
           </ul>
         </div>
       </div>
 
+      {/* Official Legal Entrepreneur Requisites Block (AR E-Commerce Law Art. 5.1 & Bank Audit Compliance) */}
+      <div className="border-t border-[#E5E7EB] bg-[#FAFAFC] py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs text-[#4B5563]">
+            <div className="bg-white p-3.5 rounded-xl border border-[#E5E7EB] shadow-2xs">
+              <span className="text-[10px] font-black uppercase text-[#9CA3AF] tracking-wider block mb-0.5">
+                {locale === 'en' ? 'Legal Seller / Entrepreneur' : locale === 'ru' ? 'Продавец / Предприниматель' : 'Fiziki Şəxs (Satıcı)'}
+              </span>
+              <span className="font-bold text-[#17181C] text-xs">{legalOwnerName || 'RubikShop.az'}</span>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-xl border border-[#E5E7EB] shadow-2xs">
+              <span className="text-[10px] font-black uppercase text-[#9CA3AF] tracking-wider block mb-0.5">
+                {locale === 'en' ? 'Tax ID (VÖEN)' : locale === 'ru' ? 'ИНН (VÖEN)' : 'VÖEN Nömrəsi'}
+              </span>
+              <span className="font-mono font-bold text-[#17181C] text-xs">{legalVoen || '—'}</span>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-xl border border-[#E5E7EB] shadow-2xs">
+              <span className="text-[10px] font-black uppercase text-[#9CA3AF] tracking-wider block mb-0.5">
+                {locale === 'en' ? 'Activity Code' : locale === 'ru' ? 'Код деятельности' : 'Fəaliyyət Növü Kodu'}
+              </span>
+              <span className="font-mono font-bold text-[#17181C] text-xs">{legalActivityCode || '47.91.0'} - İnternetlə pərakəndə ticarət</span>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-xl border border-[#E5E7EB] shadow-2xs">
+              <span className="text-[10px] font-black uppercase text-[#9CA3AF] tracking-wider block mb-0.5">
+                {locale === 'en' ? 'Legal Address' : locale === 'ru' ? 'Юридический адрес' : 'Hüquqi / Faktiki Ünvan'}
+              </span>
+              <span className="font-bold text-[#17181C] text-xs truncate block">{legalAddress || addressVal}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Bottom Legal & Payments bar */}
-      <div className="border-t border-[#E5E7EB] bg-[#F6F6F8] pt-8 pb-32 md:pb-12">
+      <div className="border-t border-[#E5E7EB] bg-[#F6F6F8] pt-6 pb-32 md:pb-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <p className="text-xs text-[#4B5563] text-center md:text-left leading-relaxed font-medium">
             © {currentYear} RubikShop.az. {dict.footer?.all_rights_reserved || (locale === 'en' ? "All rights reserved." : (locale === 'ru' ? "Все права защищены." : "Bütün hüquqlar qorunur."))} <br className="hidden sm:block" />
@@ -232,22 +278,25 @@ export function Footer({ dict, locale }: FooterProps) {
             )}
           </p>
 
-          {/* Secure Payment Badges */}
-          <div className="flex flex-wrap items-center justify-center gap-2 pr-16 md:pr-0">
-            <span className="text-[10px] uppercase text-[#374151] font-bold tracking-widest mr-2">
-              {dict.footer?.secure_payment || (locale === 'en' ? "Secure Payment" : (locale === 'ru' ? "Безопасная Оплата" : "Təhlükəsiz Ödəniş"))}
-            </span>
+          {/* Secure Payment Badges & PCI-DSS Note */}
+          <div className="flex flex-col items-center md:items-end gap-2 pr-16 md:pr-0">
             <div className="flex flex-wrap gap-2 justify-center">
-              <span className="bg-[#FFFFFF] text-[#17181C] text-[10px] font-bold px-2.5 py-1.5 rounded border border-[#E5E7EB] tracking-wider shadow-sm">
+              <span className="bg-[#FFFFFF] text-[#17181C] text-[10px] font-bold px-2.5 py-1.5 rounded border border-[#E5E7EB] tracking-wider shadow-sm flex items-center gap-1">
                 💳 Visa / MasterCard
               </span>
-              <span className="bg-[#FFFFFF] text-[#17181C] text-[10px] font-bold px-2.5 py-1.5 rounded border border-[#E5E7EB] tracking-wider shadow-sm">
+              <span className="bg-[#FFFFFF] text-[#17181C] text-[10px] font-bold px-2.5 py-1.5 rounded border border-[#E5E7EB] tracking-wider shadow-sm flex items-center gap-1">
+                🏦 Birbank / Epoint
+              </span>
+              <span className="bg-[#FFFFFF] text-[#17181C] text-[10px] font-bold px-2.5 py-1.5 rounded border border-[#E5E7EB] tracking-wider shadow-sm flex items-center gap-1">
                 📱 Apple Pay
               </span>
-              <span className="bg-[#FFFFFF] text-[#17181C] text-[10px] font-bold px-2.5 py-1.5 rounded border border-[#E5E7EB] tracking-wider shadow-sm">
+              <span className="bg-[#FFFFFF] text-[#17181C] text-[10px] font-bold px-2.5 py-1.5 rounded border border-[#E5E7EB] tracking-wider shadow-sm flex items-center gap-1">
                 💵 {locale === 'en' ? 'Cash on Delivery' : locale === 'ru' ? 'Оплата при получении' : 'Qapıda Ödəniş'}
               </span>
             </div>
+            <span className="text-[10px] text-[#6B7280] text-center md:text-right">
+              🔒 Təhlükəsiz 3D-Secure onlayn ödənişlər və çatdırılmada nağd/kartla hesablaşma.
+            </span>
           </div>
         </div>
       </div>

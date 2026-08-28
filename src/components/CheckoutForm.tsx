@@ -403,6 +403,24 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
       });
     }
 
+    const firstError = Object.values(errors)[0];
+    if (firstError) {
+      errors.submit = firstError;
+      // Smooth scroll to the top or the error area
+      if (typeof window !== 'undefined') {
+        const errorElement = document.getElementById(
+          errors.name ? 'checkout-name-input' :
+          errors.phone ? 'checkout-phone-input' :
+          errors.metroStation ? 'checkout-metro-select' :
+          errors.address ? 'checkout-address-input' :
+          errors.terms ? 'checkout-terms-checkbox' : 'checkout-step-1'
+        );
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    }
+
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -556,8 +574,14 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
         clearCart();
 
         if (typeof window !== 'undefined') {
-          window.open(waLink, '_blank');
-          router.push(`/${locale}/checkout/success?orderId=${response.orderId}&payment=${paymentMethod}&total=${totalAmount.toFixed(2)}&name=${encodeURIComponent(name)}`);
+          // On mobile, window.location.href directly triggers the WhatsApp app without popup-blocker issues
+          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+          if (isMobile) {
+            window.location.href = waLink;
+          } else {
+            window.open(waLink, '_blank');
+            router.push(`/${locale}/checkout/success?orderId=${response.orderId}&payment=${paymentMethod}&total=${totalAmount.toFixed(2)}&name=${encodeURIComponent(name)}`);
+          }
         }
       } else {
         setIsProcessing(false);
@@ -615,7 +639,7 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
           )}
 
           {/* Guest / Account Choice Step */}
-          <div className="bg-card border border-border rounded-3xl p-6 shadow-soft-sm space-y-6">
+          <div id="checkout-step-1" className="bg-card border border-border rounded-3xl p-6 shadow-soft-sm space-y-6">
             <div className="flex items-center justify-between border-b border-border pb-4">
               <div className="flex items-center gap-3">
                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-rubik-brand text-white text-xs font-black">
@@ -655,34 +679,94 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
             <AnimatePresence mode="wait">
               {isLoggedIn ? (
                 <motion.div
-                  key="logged-in"
+                  key="logged-in-container"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center justify-between"
+                  className="space-y-4"
                 >
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                    <div>
-                      <p className="text-xs font-bold text-green-900">
-                        {t({ az: 'Hesabınıza daxil olmusunuz', en: 'Logged in successfully', ru: 'Вы вошли в систему' })}
-                      </p>
-                      <p className="text-[10px] text-green-700">
-                        {t({ az: 'Məlumatlarınız avtomatik olaraq dolduruldu.', en: 'Your info was auto-filled.', ru: 'Ваши данные были заполнены автоматически.' })}
-                      </p>
+                  <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                      <div>
+                        <p className="text-xs font-bold text-green-900">
+                          {t({ az: 'Hesabınıza daxil olmusunuz', en: 'Logged in successfully', ru: 'Вы вошли в систему' })}
+                        </p>
+                        <p className="text-[10px] text-green-700">
+                          {t({ az: 'Məlumatlarınızı yoxlayın və ya redaktə edin:', en: 'Review or edit your details:', ru: 'Проверьте или отредактируйте данные:' })}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsLoggedIn(false);
+                        setName('');
+                        setPhone('');
+                        setAddress('');
+                      }}
+                      className="text-[10px] text-green-800 underline font-bold hover:text-green-950"
+                    >
+                      {t({ az: 'Çıxış et', en: 'Sign Out', ru: 'Выйти' })}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <User className="h-3 w-3" /> {dict.checkout?.name || "Ad və Soyad"} *
+                      </label>
+                      <input
+                        id="checkout-name-input"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder={dict.checkout?.name_placeholder || "Məs: Mirsəlim Şahbazov"}
+                        className={`w-full bg-muted border rounded-xl px-3.5 py-2.5 text-[16px] text-foreground focus:outline-none focus:ring-1 focus:ring-rubik-brand ${
+                          validationErrors.name ? 'border-red-500 bg-red-50/10' : 'border-border'
+                        }`}
+                      />
+                      {validationErrors.name && (
+                        <p className="text-[9px] text-red-600 font-bold flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> {validationErrors.name}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <Phone className="h-3 w-3" /> {dict.checkout?.phone || "Mobil Nömrə"} *
+                      </label>
+                      <input
+                        id="checkout-phone-input"
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder={dict.checkout?.phone_placeholder || "+994 50 123 45 67"}
+                        className={`w-full bg-muted border rounded-xl px-3.5 py-2.5 text-[16px] text-foreground focus:outline-none focus:ring-1 focus:ring-rubik-brand ${
+                          validationErrors.phone ? 'border-red-500 bg-red-50/10' : 'border-border'
+                        }`}
+                      />
+                      {validationErrors.phone && (
+                        <p className="text-[9px] text-red-600 font-bold flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> {validationErrors.phone}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <Mail className="h-3 w-3" /> {t({ az: 'E-poçt Ünvanı', en: 'Email Address', ru: 'Эл. Почта' })}
+                      </label>
+                      <input
+                        id="checkout-email-input"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="example@rubikshop.az (Könüllü)"
+                        className="w-full bg-muted border border-border rounded-xl px-3.5 py-2.5 text-[16px] text-foreground focus:outline-none focus:ring-1 focus:ring-rubik-brand"
+                      />
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      setIsLoggedIn(false);
-                      setName('');
-                      setPhone('');
-                      setAddress('');
-                    }}
-                    className="text-[10px] text-green-800 underline font-bold hover:text-green-950"
-                  >
-                    {t({ az: 'Çıxış et', en: 'Sign Out', ru: 'Выйти' })}
-                  </button>
                 </motion.div>
               ) : checkoutMode === 'login' ? (
                 <motion.form
@@ -744,6 +828,7 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
                       <User className="h-3 w-3" /> {dict.checkout?.name || "Ad və Soyad"} *
                     </label>
                     <input
+                      id="checkout-name-input"
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -764,6 +849,7 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
                       <Phone className="h-3 w-3" /> {dict.checkout?.phone || "Mobil Nömrə"} *
                     </label>
                     <input
+                      id="checkout-phone-input"
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
@@ -784,6 +870,7 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
                       <Mail className="h-3 w-3" /> {t({ az: 'E-poçt Ünvanı', en: 'Email Address', ru: 'Эл. Почта' })}
                     </label>
                     <input
+                      id="checkout-email-input"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -946,6 +1033,7 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
                         <Building className="h-3.5 w-3.5 text-emerald-600" /> Metro stansiyasını seçin *
                       </label>
                       <select
+                        id="checkout-metro-select"
                         value={selectedMetroStation}
                         onChange={(e) => setSelectedMetroStation(e.target.value)}
                         className={`w-full bg-background border rounded-xl px-3.5 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-rubik-brand ${
@@ -990,6 +1078,7 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
                         <MapPin className="h-3.5 w-3.5 text-blue-600" /> Çatdırılma Ünvanı *
                       </label>
                       <textarea
+                        id="checkout-address-input"
                         rows={3}
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
@@ -1044,6 +1133,7 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
                       <MapPin className="h-3.5 w-3.5 text-blue-600" /> Rayon adı və Ünvanınız *
                     </label>
                     <textarea
+                      id="checkout-address-input"
                       rows={3}
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
@@ -1210,7 +1300,7 @@ export function CheckoutForm({ dict, locale }: CheckoutFormProps) {
           </div>
 
           {/* Terms checkbox */}
-          <div className="space-y-2.5 bg-muted/20 p-3.5 rounded-2xl border border-border/80">
+          <div id="checkout-terms-checkbox" className="space-y-2.5 bg-muted/20 p-3.5 rounded-2xl border border-border/80">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"

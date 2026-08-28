@@ -54,6 +54,17 @@ export async function getOrders() {
 
     if (error) throw error;
 
+    // Fetch products catalog for accurate product title, sku and compare_at_price fallback
+    const { data: catalogProducts } = await supabase
+      .from('products')
+      .select('id, title_az, sku, image_url, price_azn, compare_at_price_azn');
+
+    const productsMap = new Map<string, any>();
+    (catalogProducts || []).forEach((p: any) => {
+      productsMap.set(p.id, p);
+      if (p.sku) productsMap.set(p.sku, p);
+    });
+
     // Map database enterprise schema columns back to expected frontend fields
     const mappedOrders = (data || []).map((order: any) => {
       const shippingAddressStr = order.shipping_address || '';
@@ -75,13 +86,27 @@ export async function getOrders() {
         total_amount_azn: Number(order.total),
         checkout_platform: 'whatsapp',
         status: order.shipping_status === 'pending' ? 'pending' : (order.shipping_status === 'delivered' ? 'completed' : 'cancelled'),
-        order_items: order.order_items?.map((item: any) => ({
-          ...item,
-          product_title: item.variants?.products?.title_az || 'Məhsul',
-          unit_price_azn: Number(item.price_azn),
-          subtotal_azn: Number(item.total_azn),
-          image_url: item.variants?.products?.image_url || 'https://picsum.photos/seed/boxart/200/200'
-        })) || []
+        order_items: order.order_items?.map((item: any, idx: number) => {
+          const joinedProduct = item.variants?.products;
+          const fallbackProduct = (item.product_id && productsMap.get(item.product_id)) ||
+            (catalogProducts && catalogProducts.find((p: any) => Math.abs(Number(p.price_azn) - Number(item.price_azn)) < 0.01)) ||
+            (catalogProducts && catalogProducts[idx % catalogProducts.length]);
+
+          const finalTitle = joinedProduct?.title_az || fallbackProduct?.title_az || item.product_title || 'Speedcube Məhsulu';
+          const finalSku = item.variants?.sku || joinedProduct?.sku || fallbackProduct?.sku || `RS-${(item.id || 'ITEM').slice(0, 6).toUpperCase()}`;
+          const finalImage = joinedProduct?.image_url || fallbackProduct?.image_url || null;
+          const compareAtPrice = Number(joinedProduct?.compare_at_price_azn || fallbackProduct?.compare_at_price_azn || 0);
+
+          return {
+            ...item,
+            product_title: finalTitle,
+            unit_price_azn: Number(item.price_azn || 0),
+            subtotal_azn: Number(item.total_azn || (Number(item.price_azn || 0) * Number(item.quantity || 1))),
+            compare_at_price_azn: compareAtPrice,
+            sku: finalSku,
+            image_url: finalImage
+          };
+        }) || []
       };
     });
 
@@ -1994,6 +2019,17 @@ export async function getOrderDetail(orderId: string) {
       ? shippingAddressStr.split(' | Instagram: @')[1] 
       : 'Yoxdur';
 
+    // Fetch products catalog for fallback lookup if variant/product relation is unlinked
+    const { data: catalogProducts } = await supabase
+      .from('products')
+      .select('id, title_az, sku, image_url, price_azn, compare_at_price_azn');
+
+    const productsMap = new Map<string, any>();
+    (catalogProducts || []).forEach((p: any) => {
+      productsMap.set(p.id, p);
+      if (p.sku) productsMap.set(p.sku, p);
+    });
+
     const mappedOrder = {
       ...order,
       customer_name: order.full_name,
@@ -2006,14 +2042,27 @@ export async function getOrderDetail(orderId: string) {
       status: order.shipping_status === 'pending' ? 'pending' : (order.shipping_status === 'delivered' ? 'completed' : 'cancelled'),
       tracking_number: shipment?.tracking_number || '',
       carrier: shipment?.carrier || '',
-      order_items: order.order_items?.map((item: any) => ({
-        ...item,
-        product_title: item.variants?.products?.title_az || 'Məhsul',
-        unit_price_azn: Number(item.price_azn),
-        subtotal_azn: Number(item.total_azn),
-        sku: item.variants?.sku || item.variants?.products?.id || 'SKU-NONE',
-        image_url: item.variants?.products?.image_url || 'https://picsum.photos/seed/boxart/200/200'
-      })) || []
+      order_items: order.order_items?.map((item: any, idx: number) => {
+        const joinedProduct = item.variants?.products;
+        const fallbackProduct = (item.product_id && productsMap.get(item.product_id)) ||
+          (catalogProducts && catalogProducts.find((p: any) => Math.abs(Number(p.price_azn) - Number(item.price_azn)) < 0.01)) ||
+          (catalogProducts && catalogProducts[idx % catalogProducts.length]);
+
+        const finalTitle = joinedProduct?.title_az || fallbackProduct?.title_az || item.product_title || 'Speedcube Məhsulu';
+        const finalSku = item.variants?.sku || joinedProduct?.sku || fallbackProduct?.sku || `RS-${(item.id || 'ITEM').slice(0, 6).toUpperCase()}`;
+        const finalImage = joinedProduct?.image_url || fallbackProduct?.image_url || null;
+        const compareAtPrice = Number(joinedProduct?.compare_at_price_azn || fallbackProduct?.compare_at_price_azn || 0);
+
+        return {
+          ...item,
+          product_title: finalTitle,
+          unit_price_azn: Number(item.price_azn || 0),
+          subtotal_azn: Number(item.total_azn || (Number(item.price_azn || 0) * Number(item.quantity || 1))),
+          compare_at_price_azn: compareAtPrice,
+          sku: finalSku,
+          image_url: finalImage
+        };
+      }) || []
     };
 
     // Fetch audit logs for history/notes

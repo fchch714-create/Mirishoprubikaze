@@ -253,7 +253,12 @@ export default function OrderDetailClient({ orderId }: { orderId: string }) {
                     </div>
                     <div className="text-right">
                       <div className="font-mono text-white font-bold">{item.subtotal_azn.toFixed(2)} ₼</div>
-                      <div className="text-xs text-slate-400 mt-1">{item.quantity} x {item.unit_price_azn.toFixed(2)} ₼</div>
+                      <div className="text-xs text-slate-400 mt-1 flex items-center justify-end gap-1.5 font-mono">
+                        {item.compare_at_price_azn && Number(item.compare_at_price_azn) > Number(item.unit_price_azn) && (
+                          <span className="line-through text-slate-500">{Number(item.compare_at_price_azn).toFixed(2)} ₼</span>
+                        )}
+                        <span>{item.quantity} x {item.unit_price_azn.toFixed(2)} ₼</span>
+                      </div>
                     </div>
                   </div>
                 ))}

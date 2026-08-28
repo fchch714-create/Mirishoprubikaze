@@ -6,6 +6,7 @@ import { resendOrderInvoiceEmail } from '@/lib/actions/admin';
 import { getSettings } from '@/lib/actions/settings';
 
 interface OrderItem {
+  id?: string;
   product_title?: string;
   sku?: string;
   quantity?: number;
@@ -13,6 +14,8 @@ interface OrderItem {
   subtotal_azn?: number;
   price_azn?: number;
   total_azn?: number;
+  compare_at_price_azn?: number;
+  image_url?: string;
 }
 
 interface OrderData {
@@ -106,20 +109,31 @@ export default function ElectronicInvoiceModal({ order, isOpen, onClose }: Elect
   const isPaid = order.payment_status === 'paid';
 
   const generateInvoiceHtml = () => {
+    const displayVoen = legalInfo.voen ? legalInfo.voen : 'Qeydiyyat mərhələsində';
     const itemsRows = (order.order_items && order.order_items.length > 0)
       ? order.order_items.map((item, idx) => {
           const title = item.product_title || 'Speedcube Məhsulu';
           const sku = item.sku || 'SKU-NONE';
           const qty = Number(item.quantity || 1);
           const unitPrice = Number(item.unit_price_azn || item.price_azn || 0);
+          const compareAtPrice = Number(item.compare_at_price_azn || 0);
+          const hasDiscount = compareAtPrice > unitPrice;
           const totalItem = Number(item.subtotal_azn || item.total_azn || unitPrice * qty);
+
+          const priceCellHtml = hasDiscount
+            ? `<div style="text-decoration: line-through; color: #94a3b8; font-size: 10px;">${compareAtPrice.toFixed(2)} ₼</div><div style="font-weight: 700; color: #0f172a;">${unitPrice.toFixed(2)} ₼</div>`
+            : `<div style="color: #334155;">${unitPrice.toFixed(2)} ₼</div>`;
+
           return `
             <tr>
               <td style="padding: 10px 14px; text-align: center; color: #64748b; font-family: monospace; font-size: 11px; border-bottom: 1px solid #e2e8f0;">${idx + 1}</td>
-              <td style="padding: 10px 14px; font-weight: 600; color: #0f172a; font-size: 12px; border-bottom: 1px solid #e2e8f0;">${title}</td>
+              <td style="padding: 10px 14px; font-weight: 600; color: #0f172a; font-size: 12px; border-bottom: 1px solid #e2e8f0;">
+                <div>${title}</div>
+                ${hasDiscount ? `<span style="display:inline-block; font-size:9px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; border-radius:3px; padding:1px 4px; margin-top:2px; font-weight:700;">Endirimli Qiymət</span>` : ''}
+              </td>
               <td style="padding: 10px 14px; color: #64748b; font-family: monospace; font-size: 11px; border-bottom: 1px solid #e2e8f0;">${sku}</td>
               <td style="padding: 10px 14px; text-align: center; font-weight: 700; color: #0f172a; font-size: 12px; border-bottom: 1px solid #e2e8f0;">${qty}</td>
-              <td style="padding: 10px 14px; text-align: right; font-family: monospace; color: #334155; font-size: 12px; border-bottom: 1px solid #e2e8f0;">${unitPrice.toFixed(2)} ₼</td>
+              <td style="padding: 10px 14px; text-align: right; font-family: monospace; font-size: 12px; border-bottom: 1px solid #e2e8f0;">${priceCellHtml}</td>
               <td style="padding: 10px 14px; text-align: right; font-family: monospace; font-weight: 700; color: #0f172a; font-size: 12px; border-bottom: 1px solid #e2e8f0;">${totalItem.toFixed(2)} ₼</td>
             </tr>
           `;
@@ -468,7 +482,7 @@ export default function ElectronicInvoiceModal({ order, isOpen, onClose }: Elect
         <div>
           <div class="col-title">SATICI (FƏRDİ SAHİBKAR)</div>
           <div class="party-title">${legalInfo.ownerName || 'RubikShop.az (Fərdi Sahibkar)'}</div>
-          <div class="party-row"><strong>VÖEN:</strong> <span style="font-family:monospace; font-weight:700; color:#0f172a;">${legalInfo.voen || '1307525381'}</span></div>
+          <div class="party-row"><strong>VÖEN:</strong> <span style="font-family:monospace; font-weight:700; color:#0f172a;">${displayVoen}</span></div>
           <div class="party-row"><strong>Fəaliyyət Kodu:</strong> <span style="font-family:monospace;">${legalInfo.activityCode}</span> (İnternetlə pərakəndə ticarət)</div>
           <div class="party-row"><strong>Ünvan:</strong> ${legalInfo.address}</div>
           <div class="party-row"><strong>Əlaqə:</strong> ${legalInfo.phone} | ${legalInfo.email}</div>
@@ -721,7 +735,7 @@ export default function ElectronicInvoiceModal({ order, isOpen, onClose }: Elect
             <div className="space-y-1">
               <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">SATICI (Fərdi Sahibkar)</span>
               <div className="font-bold text-slate-900 text-sm">{legalInfo.ownerName || 'RubikShop.az (Fərdi Sahibkar)'}</div>
-              <div className="text-slate-600"><span className="font-semibold text-slate-700">VÖEN:</span> <span className="font-mono font-bold text-slate-900">{legalInfo.voen || '1307525381'}</span></div>
+              <div className="text-slate-600"><span className="font-semibold text-slate-700">VÖEN:</span> <span className="font-mono font-bold text-slate-900">{legalInfo.voen ? legalInfo.voen : 'Qeydiyyat mərhələsində'}</span></div>
               <div className="text-slate-600"><span className="font-semibold text-slate-700">Fəaliyyət Kodu:</span> <span className="font-mono">{legalInfo.activityCode}</span> (İnternetlə pərakəndə ticarət)</div>
               <div className="text-slate-600"><span className="font-semibold text-slate-700">Ünvan:</span> {legalInfo.address}</div>
               <div className="text-slate-600"><span className="font-semibold text-slate-700">Əlaqə:</span> {legalInfo.phone} | {legalInfo.email}</div>
@@ -761,15 +775,29 @@ export default function ElectronicInvoiceModal({ order, isOpen, onClose }: Elect
                     const sku = item.sku || 'SKU-001';
                     const qty = Number(item.quantity || 1);
                     const unitPrice = Number(item.unit_price_azn || item.price_azn || 0);
+                    const compareAtPrice = Number(item.compare_at_price_azn || 0);
+                    const hasDiscount = compareAtPrice > unitPrice;
                     const totalItem = Number(item.subtotal_azn || item.total_azn || unitPrice * qty);
 
                     return (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="py-3 px-4 text-center text-slate-500 font-mono">{idx + 1}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-900">{title}</td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-900">{title}</div>
+                          {hasDiscount && (
+                            <span className="inline-block text-[9px] bg-red-50 text-red-600 border border-red-200 rounded px-1.5 py-0.5 mt-0.5 font-bold">
+                              Endirimli Qiymət
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3 px-4 text-slate-500 font-mono">{sku}</td>
                         <td className="py-3 px-4 text-center font-bold text-slate-900">{qty}</td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-700">{unitPrice.toFixed(2)} ₼</td>
+                        <td className="py-3 px-4 text-right font-mono">
+                          {hasDiscount && (
+                            <div className="line-through text-slate-400 text-[10px]">{compareAtPrice.toFixed(2)} ₼</div>
+                          )}
+                          <div className="text-slate-900 font-semibold">{unitPrice.toFixed(2)} ₼</div>
+                        </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">{totalItem.toFixed(2)} ₼</td>
                       </tr>
                     );

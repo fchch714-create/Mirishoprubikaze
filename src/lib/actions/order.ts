@@ -197,6 +197,32 @@ export async function submitOrderAtomic(payload: OrderPayload) {
         if (matchedVariant.price_azn !== undefined && matchedVariant.price_azn !== null) {
           actualUnitPrice = Number(matchedVariant.price_azn);
         }
+      } else {
+        // Auto-create / attach standard variant record for single-item product
+        try {
+          const defaultSku = productData.sku || `RS-${productData.id.slice(0, 8).toUpperCase()}`;
+          const { data: newVar } = await adminSupabase
+            .from('variants')
+            .insert({
+              product_id: productData.id,
+              sku: defaultSku,
+              name: 'Standart',
+              name_az: 'Standart',
+              price_azn: productData.price_azn,
+              stock: productData.stock_quantity || 10,
+              stock_quantity: productData.stock_quantity || 10,
+              is_active: true
+            })
+            .select('id, name_az')
+            .single();
+
+          if (newVar) {
+            targetVariantId = newVar.id;
+            targetVariantName = newVar.name_az || 'Standart';
+          }
+        } catch (vErr) {
+          console.warn('Could not auto-create standard variant:', vErr);
+        }
       }
 
       // Verify actual stock availability unless pre-order is permitted

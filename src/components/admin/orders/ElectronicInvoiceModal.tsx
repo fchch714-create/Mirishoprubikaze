@@ -105,9 +105,512 @@ export default function ElectronicInvoiceModal({ order, isOpen, onClose }: Elect
   const paymentStatus = order.payment_status === 'paid' ? 'ÖDƏNİLİB' : (order.payment_status === 'refunded' ? 'GERİ QAYTARILIB' : 'GÖZLƏYİR');
   const isPaid = order.payment_status === 'paid';
 
-  const handlePrint = () => {
-    window.print();
+  const generateInvoiceHtml = () => {
+    const itemsRows = (order.order_items && order.order_items.length > 0)
+      ? order.order_items.map((item, idx) => {
+          const title = item.product_title || 'Speedcube Məhsulu';
+          const sku = item.sku || 'SKU-NONE';
+          const qty = Number(item.quantity || 1);
+          const unitPrice = Number(item.unit_price_azn || item.price_azn || 0);
+          const totalItem = Number(item.subtotal_azn || item.total_azn || unitPrice * qty);
+          return `
+            <tr>
+              <td style="padding: 10px 14px; text-align: center; color: #64748b; font-family: monospace; font-size: 11px; border-bottom: 1px solid #e2e8f0;">${idx + 1}</td>
+              <td style="padding: 10px 14px; font-weight: 600; color: #0f172a; font-size: 12px; border-bottom: 1px solid #e2e8f0;">${title}</td>
+              <td style="padding: 10px 14px; color: #64748b; font-family: monospace; font-size: 11px; border-bottom: 1px solid #e2e8f0;">${sku}</td>
+              <td style="padding: 10px 14px; text-align: center; font-weight: 700; color: #0f172a; font-size: 12px; border-bottom: 1px solid #e2e8f0;">${qty}</td>
+              <td style="padding: 10px 14px; text-align: right; font-family: monospace; color: #334155; font-size: 12px; border-bottom: 1px solid #e2e8f0;">${unitPrice.toFixed(2)} ₼</td>
+              <td style="padding: 10px 14px; text-align: right; font-family: monospace; font-weight: 700; color: #0f172a; font-size: 12px; border-bottom: 1px solid #e2e8f0;">${totalItem.toFixed(2)} ₼</td>
+            </tr>
+          `;
+        }).join('')
+      : `
+        <tr>
+          <td colspan="6" style="padding: 24px; text-align: center; color: #94a3b8; font-style: italic; border-bottom: 1px solid #e2e8f0;">
+            Məhsul məlumatları tapılmadı
+          </td>
+        </tr>
+      `;
+
+    return `<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Elektron İnvoys - ${invoiceNumber} - RubikShop.az</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f1f5f9;
+      color: #1e293b;
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .invoice-card {
+      max-width: 820px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+    .action-bar {
+      background: #0f172a;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: white;
+    }
+    .action-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-print {
+      background: #f59e0b;
+      color: #0f172a;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .btn-print:hover {
+      background: #d97706;
+    }
+    .invoice-body {
+      padding: 36px 40px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+    .brand-title {
+      font-size: 24px;
+      font-weight: 900;
+      color: #D8232A;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-badge {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      background: #D8232A;
+      color: white;
+      border-radius: 6px;
+      text-align: center;
+      line-height: 28px;
+      font-size: 15px;
+      font-weight: 900;
+    }
+    .brand-sub {
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    .brand-law {
+      font-size: 11px;
+      color: #475569;
+      margin-top: 4px;
+      max-width: 420px;
+      line-height: 1.4;
+    }
+    .inv-info {
+      text-align: right;
+    }
+    .inv-number {
+      display: inline-block;
+      padding: 4px 12px;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .inv-date {
+      font-size: 12px;
+      color: #475569;
+      margin-top: 6px;
+    }
+    .inv-status {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 3px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-paid {
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #86efac;
+    }
+    .status-pending {
+      background: #fef3c7;
+      color: #b45309;
+      border: 1px solid #fcd34d;
+    }
+    .grid-parties {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 24px;
+    }
+    .col-title {
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: #94a3b8;
+      letter-spacing: 0.6px;
+      margin-bottom: 6px;
+    }
+    .party-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+    .party-row {
+      font-size: 12px;
+      color: #475569;
+      margin-bottom: 3px;
+      line-height: 1.4;
+    }
+    .party-row strong {
+      color: #334155;
+    }
+    .border-left-party {
+      border-left: 1px solid #e2e8f0;
+      padding-left: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th {
+      background: #0f172a;
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 14px;
+      text-align: left;
+    }
+    .summary-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      margin-top: 10px;
+    }
+    .secure-note {
+      max-width: 380px;
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+    .secure-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #166534;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .totals-card {
+      width: 280px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .calc-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #475569;
+      margin-bottom: 8px;
+    }
+    .final-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 15px;
+      font-weight: 900;
+      color: #0f172a;
+      border-top: 1px solid #cbd5e1;
+      padding-top: 10px;
+      margin-top: 6px;
+    }
+    .final-amount {
+      color: #D8232A;
+      font-family: monospace;
+      font-size: 17px;
+    }
+    .footer-box {
+      margin-top: 32px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #64748b;
+    }
+    .verif-code {
+      font-family: monospace;
+      font-weight: 700;
+      color: #334155;
+      letter-spacing: 0.5px;
+    }
+
+    @media print {
+      body {
+        background: #ffffff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .action-bar {
+        display: none !important;
+      }
+      .invoice-card {
+        max-width: 100% !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+      }
+      .invoice-body {
+        padding: 10mm 12mm !important;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 8mm;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-card">
+    <div class="action-bar">
+      <div class="action-title">
+        <span>📄 Elektron Satış Qəbzi / İnvoys (${invoiceNumber})</span>
+      </div>
+      <button class="btn-print" onclick="window.print()">
+        <span>🖨️ Çap Et (PDF Saxla)</span>
+      </button>
+    </div>
+
+    <div class="invoice-body">
+      <!-- Header -->
+      <div class="header">
+        <div>
+          <div class="brand-title">
+            <span class="brand-badge">🛍</span>
+            <span>RUBIKSHOP.AZ</span>
+          </div>
+          <div class="brand-sub">Professional Speedcubing & Zəka Oyunları Mağazası</div>
+          <div class="brand-law">
+            AR "Elektron ticarət haqqında" Qanunu və Vergi Məcəlləsinin 16.1.8-ci maddəsinə uyğun rəsmi elektron satış sənədi
+          </div>
+        </div>
+
+        <div class="inv-info">
+          <div class="inv-number">${invoiceNumber}</div>
+          <div class="inv-date">Tarix: <strong style="color:#0f172a; font-family:monospace;">${formattedDate}</strong></div>
+          <div>
+            <span class="inv-status ${isPaid ? 'status-paid' : 'status-pending'}">
+              ${isPaid ? '✓ ÖDƏNİLİB' : '⏱ ' + paymentStatus}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Parties -->
+      <div class="grid-parties">
+        <div>
+          <div class="col-title">SATICI (FƏRDİ SAHİBKAR)</div>
+          <div class="party-title">${legalInfo.ownerName || 'RubikShop.az (Fərdi Sahibkar)'}</div>
+          <div class="party-row"><strong>VÖEN:</strong> <span style="font-family:monospace; font-weight:700; color:#0f172a;">${legalInfo.voen || '1307525381'}</span></div>
+          <div class="party-row"><strong>Fəaliyyət Kodu:</strong> <span style="font-family:monospace;">${legalInfo.activityCode}</span> (İnternetlə pərakəndə ticarət)</div>
+          <div class="party-row"><strong>Ünvan:</strong> ${legalInfo.address}</div>
+          <div class="party-row"><strong>Əlaqə:</strong> ${legalInfo.phone} | ${legalInfo.email}</div>
+        </div>
+
+        <div class="border-left-party">
+          <div class="col-title">ALICI (MÜŞTƏRİ)</div>
+          <div class="party-title">${customerName}</div>
+          <div class="party-row"><strong>Telefon:</strong> <span style="font-family:monospace;">${customerPhone}</span></div>
+          <div class="party-row"><strong>E-poçt:</strong> <span style="font-family:monospace;">${customerEmail}</span></div>
+          <div class="party-row"><strong>Çatdırılma Ünvanı:</strong> ${customerAddress}</div>
+          ${order.tracking_number ? `<div class="party-row"><strong>Kargo İzləmə №:</strong> <span style="font-family:monospace; font-weight:700; color:#0f172a;">${order.tracking_number}</span></div>` : ''}
+        </div>
+      </div>
+
+      <!-- Items Table -->
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:center; width:40px;">№</th>
+            <th>Məhsulun Adı</th>
+            <th style="font-family:monospace;">SKU</th>
+            <th style="text-align:center;">Say</th>
+            <th style="text-align:right;">Qiymət (AZN)</th>
+            <th style="text-align:right;">Məbləğ (AZN)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsRows}
+        </tbody>
+      </table>
+
+      <!-- Totals & Security Note -->
+      <div class="summary-section">
+        <div class="secure-note">
+          <div class="secure-title">🛡 3D-Secure Nağdsız Elektron Ödəniş</div>
+          <p>
+            Bu sənəd avtomatik olaraq elektron sistem tərəfindən generasiya edilmişdir. Ödəniş nağdsız bank kanalları vasitəsilə həyata keçirildiyindən fiziki NKA kassa çeki tələb olunmur.
+          </p>
+        </div>
+
+        <div class="totals-card">
+          <div class="calc-row">
+            <span>Ara cəm (Subtotal):</span>
+            <span style="font-family:monospace; font-weight:600;">${subtotal.toFixed(2)} ₼</span>
+          </div>
+
+          ${discount > 0 ? `
+            <div class="calc-row" style="color:#e11d48;">
+              <span>Endirim:</span>
+              <span style="font-family:monospace; font-weight:600;">-${discount.toFixed(2)} ₼</span>
+            </div>
+          ` : ''}
+
+          <div class="calc-row">
+            <span>Çatdırılma:</span>
+            <span style="font-family:monospace; font-weight:600;">${shippingFee.toFixed(2)} ₼</span>
+          </div>
+
+          <div class="final-row">
+            <span>YEKUN CƏM:</span>
+            <span class="final-amount">${finalTotal.toFixed(2)} ₼</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer-box">
+        <div>
+          <strong style="color:#334155;">RubikShop.az Elektron Ticarət Platforması</strong> • Bütün hüquqlar qorunur.
+        </div>
+        <div class="verif-code">
+          VERİFİKASİYA KODU: RS-${orderIdShort}-${Date.now().toString().slice(-4)}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        try {
+          window.focus();
+          window.print();
+        } catch (e) {
+          console.error(e);
+        }
+      }, 350);
+    });
+  </script>
+</body>
+</html>`;
   };
+
+  const handlePrint = () => {
+    const html = generateInvoiceHtml();
+    
+    // Method 1: Try dedicated popup window (best for mobile & desktop)
+    const printWindow = window.open('', '_blank', 'width=900,height=800,menubar=no,toolbar=no,location=no,status=no');
+    if (printWindow && printWindow.document) {
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+      return;
+    }
+
+    // Method 2: Fallback to hidden iframe for environments blocking popup
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error('Iframe print error:', e);
+        } finally {
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          }, 3000);
+        }
+      }, 400);
+    } else {
+      // Last resort fallback
+      window.print();
+    }
+  };
+
 
   const handleSendEmail = async () => {
     setIsSendingEmail(true);
@@ -335,25 +838,14 @@ export default function ElectronicInvoiceModal({ order, isOpen, onClose }: Elect
 
       </div>
 
-      {/* Global Print Media Styles */}
-      <style jsx global>{`
+      {/* Native Print Styles */}
+      <style>{`
         @media print {
-          body * {
-            visibility: hidden !important;
+          body {
+            background: #ffffff !important;
           }
-          #printable-invoice-content, #printable-invoice-content * {
-            visibility: visible !important;
-          }
-          #printable-invoice-content {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            padding: 20px !important;
-            background: white !important;
-            color: black !important;
-            border: none !important;
-            box-shadow: none !important;
+          .print\\:hidden {
+            display: none !important;
           }
         }
       `}</style>

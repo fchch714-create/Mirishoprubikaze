@@ -173,16 +173,23 @@ const DEFAULT_PAGES: Record<string, CMSPage> = {
 
         <h3 style="font-size: 1.2rem; font-weight: 800; color: #17181C; margin-top: 24px; margin-bottom: 10px;">3. Üçüncü Şəxslərə Ötürülməmə:</h3>
         <p style="margin-bottom: 16px;">Fərdi məlumatlar kuryer/çatdırılma xidməti istisna olmaqla heç bir halda üçüncü şəxslərə ötürülmür, satılmır və ya kommersiya məqsədilə yayılmır.</p>
+
+        <h3 style="font-size: 1.2rem; font-weight: 800; color: #17181C; margin-top: 24px; margin-bottom: 10px;">4. Kukilər (Cookies) və Veb Analitika (Google Analytics):</h3>
+        <p style="margin-bottom: 16px;">Saytımız istifadəçi təcrübəsini təkmilləşdirmək, ziyarətçi statistikasını və səhifə performansını anonim şəkildə təhlil etmək üçün <strong>Google Analytics 4</strong> xidmətindən və standart kuki (cookie) fayllarından istifadə edir. Toplanan analitik məlumatlar şəxsi kimliyi müəyyən etmir və yalnız xidmət keyfiyyətinin yüksəldilməsi məqsədi daşıyır.</p>
       </div>
     `,
     content_en: `
       <div style="line-height: 1.8; color: #374151;">
         <p style="margin-bottom: 16px;"><strong>RubikShop.az</strong> is committed to protecting your personal data in accordance with the Law of the Republic of Azerbaijan on Personal Data.</p>
+        <h3 style="font-size: 1.2rem; font-weight: 800; color: #17181C; margin-top: 24px; margin-bottom: 10px;">Cookies & Analytics:</h3>
+        <p style="margin-bottom: 16px;">We use Google Analytics to analyze website traffic and optimize user experience. All analytics data is aggregated and anonymized.</p>
       </div>
     `,
     content_ru: `
       <div style="line-height: 1.8; color: #374151;">
         <p style="margin-bottom: 16px;"><strong>RubikShop.az</strong> гарантирует конфиденциальность ваших персональных данных в соответствии с Законом Азербайджанской Республики «О персональных данных».</p>
+        <h3 style="font-size: 1.2rem; font-weight: 800; color: #17181C; margin-top: 24px; margin-bottom: 10px;">Файлы Cookie и Аналитика:</h3>
+        <p style="margin-bottom: 16px;">Мы используем Google Analytics для анализа трафика и улучшения взаимодействия с пользователем. Все данные анонимизированы.</p>
       </div>
     `
   }

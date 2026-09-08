@@ -8,12 +8,51 @@ const locales = ['az', 'ru', 'en'];
 const defaultLocale = 'az';
 
 function getLocale(request: NextRequest): string {
+  // 1. Check if user has an explicit saved language cookie
+  const savedLocale = request.cookies.get('NEXT_LOCALE')?.value || request.cookies.get('locale')?.value;
+  if (savedLocale && locales.includes(savedLocale)) {
+    return savedLocale;
+  }
+
+  // 2. Parse browser language preferences
   const negotiatorHeaders: Record<string, string> = {};
   request.headers.forEach((value, key) => (negotiatorHeaders[key] = value));
 
-  const languages = new Negotiator({ headers: negotiatorHeaders }).languages();
   try {
-    return match(languages, locales, defaultLocale);
+    const rawLanguages = new Negotiator({ headers: negotiatorHeaders }).languages() || [];
+    
+    if (rawLanguages.length === 0 || rawLanguages[0] === '*') {
+      return defaultLocale; // 'az'
+    }
+
+    // Inspect language preferences in order of user priority
+    for (const lang of rawLanguages) {
+      const lower = lang.toLowerCase();
+      // Turkish user -> Map to Azerbaijani (best local match)
+      if (lower === 'tr' || lower.startsWith('tr-')) {
+        return 'az';
+      }
+      // Azerbaijani user
+      if (lower === 'az' || lower.startsWith('az-')) {
+        return 'az';
+      }
+      // Russian user
+      if (lower === 'ru' || lower.startsWith('ru-')) {
+        return 'ru';
+      }
+      // English user
+      if (lower === 'en' || lower.startsWith('en-')) {
+        return 'en';
+      }
+    }
+
+    // If primary language is a foreign language (e.g. de, fr, es, it, ar, zh) without tr/az/ru -> English
+    const firstLang = rawLanguages[0]?.toLowerCase() || '';
+    if (firstLang && !firstLang.startsWith('az') && !firstLang.startsWith('tr') && !firstLang.startsWith('ru')) {
+      return 'en';
+    }
+
+    return defaultLocale; // 'az'
   } catch (error) {
     return defaultLocale;
   }

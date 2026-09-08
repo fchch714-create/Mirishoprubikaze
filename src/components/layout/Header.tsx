@@ -93,6 +93,13 @@ export function Header({ dict, locale }: HeaderProps) {
   }, []);
 
   const changeLanguage = (newLocale: string) => {
+    // Save language choice in cookie for 1 year
+    try {
+      document.cookie = `NEXT_LOCALE=${newLocale}; path=/; max-age=31536000; SameSite=Lax`;
+      document.cookie = `locale=${newLocale}; path=/; max-age=31536000; SameSite=Lax`;
+    } catch {
+      // ignore
+    }
     const segments = pathname.split('/');
     if (segments[1] === locale) {
       segments[1] = newLocale;
@@ -178,6 +185,24 @@ export function Header({ dict, locale }: HeaderProps) {
 
           {/* RIGHT SECTION */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Desktop Language Switcher */}
+            <div className="hidden lg:flex items-center bg-[#F6F6F8] p-1 rounded-lg border border-[#E5E7EB] mr-1">
+              {(['az', 'ru', 'en'] as const).map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => changeLanguage(lang)}
+                  className={`px-2 py-0.5 text-xs font-bold rounded transition-all uppercase cursor-pointer ${
+                    locale === lang
+                      ? 'bg-[#17181C] text-white shadow-xs'
+                      : 'text-[#4B5563] hover:text-[#17181C] hover:bg-[#EDEDED]'
+                  }`}
+                >
+                  {lang}
+                </button>
+              ))}
+            </div>
+
             {/* Account Shortcut */}
             <button
               onClick={handleAccountClick}

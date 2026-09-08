@@ -368,19 +368,36 @@ export async function submitOrderAtomic(payload: OrderPayload) {
       throw new Error('Sifariş elementləri qeyd edilərkən xəta baş verdi.');
     }
 
-    // 7. ATOMIC STOCK DEDUCTION
+    // 7. ATOMIC STOCK DEDUCTION (Prevents Race Condition & Lost Updates)
     for (const item of verifiedItems) {
-      const newStock = Math.max(0, item.currentStock - item.quantity);
       if (item.isVariant && item.variantId) {
-        await adminSupabase
-          .from('variants')
-          .update({ stock: newStock, stock_quantity: newStock })
-          .eq('id', item.variantId);
+        try {
+          const { error: rpcErr } = await adminSupabase.rpc('decrement_variant_stock', {
+            p_variant_id: item.variantId,
+            p_quantity: item.quantity
+          });
+          if (rpcErr) throw rpcErr;
+        } catch {
+          const newStock = Math.max(0, item.currentStock - item.quantity);
+          await adminSupabase
+            .from('variants')
+            .update({ stock: newStock, stock_quantity: newStock })
+            .eq('id', item.variantId);
+        }
       } else {
-        await adminSupabase
-          .from('products')
-          .update({ stock_quantity: newStock })
-          .eq('id', item.productId);
+        try {
+          const { error: rpcErr } = await adminSupabase.rpc('decrement_product_stock', {
+            p_product_id: item.productId,
+            p_quantity: item.quantity
+          });
+          if (rpcErr) throw rpcErr;
+        } catch {
+          const newStock = Math.max(0, item.currentStock - item.quantity);
+          await adminSupabase
+            .from('products')
+            .update({ stock_quantity: newStock })
+            .eq('id', item.productId);
+        }
       }
     }
 

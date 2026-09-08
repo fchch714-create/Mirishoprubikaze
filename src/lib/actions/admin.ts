@@ -999,7 +999,7 @@ export async function sendGlobalNotification(payload: {
 
 export async function getCMSPages() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     const { data, error } = await supabase
       .from('pages')
       .select('*')
@@ -1248,7 +1248,7 @@ export async function deleteCMSPage(id: string) {
 
 export async function getBanners() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     const { data, error } = await supabase
       .from('banners')
       .select('*')
@@ -1388,7 +1388,7 @@ export async function deleteBanner(id: string) {
 
 export async function getFAQs() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     const { data, error } = await supabase
       .from('faqs')
       .select('*')
@@ -1517,7 +1517,7 @@ export async function deleteFAQ(id: string) {
 
 export async function getNavigationItems() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     const { data, error } = await supabase
       .from('navigation_items')
       .select('*')
@@ -1650,7 +1650,7 @@ export async function deleteNavigationItem(id: string) {
 
 export async function getBlogPosts() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     const { data, error } = await supabase
       .from('blog_posts')
       .select('*')
@@ -1781,7 +1781,7 @@ export async function deleteBlogPost(id: string) {
 
 export async function getCollections() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const { supabase } = await requireStaff();
     const { data, error } = await supabase
       .from('collections')
       .select('*, collection_products(product_id)')

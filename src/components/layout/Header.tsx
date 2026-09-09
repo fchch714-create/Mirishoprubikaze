@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthUser } from '@/hooks/useAuthUser';
 import {
-  ShoppingCart,
+  ShoppingBag,
   User,
   Search,
   Menu,
@@ -17,17 +17,12 @@ import {
   ShieldCheck,
   ChevronRight,
   ChevronDown,
-  Compass,
-  HelpCircle,
-  PhoneCall,
   MessageCircle,
-  Layers,
 } from 'lucide-react';
 import { rubikTaxonomyGroups } from '@/lib/config/catalog';
 import { useCartStore } from '@/store/useCartStore';
 import { useAuthModalStore } from '@/store/useAuthModalStore';
 import type { ApplicationDictionary } from '@/types/application.types';
-import { CartDrawer } from '@/components/CartDrawer';
 import { SearchBar } from '@/components/layout/SearchBar';
 
 interface HeaderProps {
@@ -38,7 +33,7 @@ interface HeaderProps {
 export function Header({ dict, locale }: HeaderProps) {
   const [mounted, setMounted] = React.useState(false);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
-  const [isCartOpen, setIsCartOpen] = React.useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = React.useState(false);
   const [openAccordion, setOpenAccordion] = React.useState<'cubes' | 'brands' | null>(null);
   const [isDrawerSearchOpen, setIsDrawerSearchOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -61,18 +56,8 @@ export function Header({ dict, locale }: HeaderProps) {
   const pathname = usePathname();
 
   const items = useCartStore((state) => state.items);
+  const openCart = useCartStore((state) => state.openCart);
   const totalItems = React.useMemo(() => items.reduce((total, item) => total + (item.quantity || 1), 0), [items]);
-
-  // Determine whether to show the mobile search sub-header
-  const showMobileSearch = React.useMemo(() => {
-    const cleanPath = pathname || '';
-    const isHome = 
-      cleanPath === '/' || 
-      cleanPath === `/${locale}` || 
-      cleanPath === `/${locale}/`;
-    const isCategory = cleanPath.includes('/category');
-    return isHome || isCategory;
-  }, [pathname, locale]);
 
   const handleAccountClick = React.useCallback(() => {
     if (!user) {
@@ -147,35 +132,33 @@ export function Header({ dict, locale }: HeaderProps) {
         </div>
       )}
 
-      <header className={`sticky top-0 w-full bg-[#FFFFFF] border-b border-[#EDEDED] shadow-sm backdrop-blur-md ${isMenuOpen ? 'z-[99999]' : 'z-40'}`}>
+      <header className={`sticky top-0 w-full bg-[#FFFFFF] border-b border-[#EDEDED] shadow-xs backdrop-blur-md ${isMenuOpen ? 'z-[99999]' : 'z-40'}`}>
         
-        {/* DESKTOP LAYOUT ARCHITECTURE RULES */}
-        <div className="hidden md:flex items-center justify-between bg-[#FFFFFF] border-b border-[#EDEDED] px-6 py-3.5 w-full gap-6">
-          
-          {/* LEFT SECTION */}
-          <div className="flex items-center gap-4 shrink-0">
+        {/* PİLLƏ 1: Əsas Util Panel (h-[52px] mobildə, h-[60px] desktopda) */}
+        <div className="h-[52px] lg:h-[60px] max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between gap-3 lg:gap-8 w-full">
+          {/* Sol: Mobil menyu düyməsi (Menu - lucide-react) -> QƏTİ ŞƏKİLDƏ yalnız mobildə (flex lg:hidden). Masaüstündə tam gizlənir. */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2.5 text-[#17181C] hover:text-[#D8232A] hover:bg-[#F6F6F8] rounded-lg transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
-              aria-label="Desktop Menu Toggle"
+              className="flex lg:hidden p-2 text-[#17181C] hover:text-[#D8232A] hover:bg-[#F6F6F8] rounded-lg transition-colors cursor-pointer min-w-[40px] min-h-[40px] items-center justify-center"
+              aria-label={t({ az: 'Menyu', en: 'Menu', ru: 'Меню' })}
             >
               <Menu className="h-6 w-6" />
             </button>
 
-            {/* Brand Logo Link per Section I */}
-            <Link href={`/${locale}`} className="flex items-center gap-2 group">
-              {/* Mascot Icon */}
+            {/* Mərkəz/Sol: RubikShop.az loqosu (Link href={`/${locale}`}) */}
+            <Link href={`/${locale}`} className="flex items-center gap-2 group shrink-0">
               <div className="w-8 h-8 rounded-lg bg-[#D8232A] text-white flex items-center justify-center font-black text-sm shadow-sm group-hover:scale-105 transition-transform">
                 <Package className="w-5 h-5" />
               </div>
-              <span className="font-sans font-black text-[#D8232A] text-xl md:text-2xl tracking-tight">
-                RubikShop<span className="text-[#17181C] text-sm md:text-base font-bold ml-0.5">.az</span>
+              <span className="font-sans font-black text-[#D8232A] text-xl lg:text-2xl tracking-tight">
+                RubikShop<span className="text-[#17181C] text-sm lg:text-base font-bold ml-0.5">.az</span>
               </span>
             </Link>
           </div>
 
-          {/* MIDDLE SECTION */}
-          <div className="flex-1 max-w-xl mx-auto">
+          {/* Mərkəz (Desktop): Mövcud SearchBar.tsx komponentini desktopda mərkəzə yerləşdir (hidden lg:flex max-w-md w-full) */}
+          <div className="hidden lg:flex flex-1 max-w-md w-full mx-auto">
             <SearchBar
               locale={locale}
               placeholder={dict.header?.search_placeholder || "Məhsul axtar..."}
@@ -183,9 +166,9 @@ export function Header({ dict, locale }: HeaderProps) {
             />
           </div>
 
-          {/* RIGHT SECTION */}
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Desktop Language Switcher */}
+          {/* Sağ: Util aksiyalar */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {/* Desktop Dil Seçici */}
             <div className="hidden lg:flex items-center bg-[#F6F6F8] p-1 rounded-lg border border-[#E5E7EB] mr-1">
               {(['az', 'ru', 'en'] as const).map((lang) => (
                 <button
@@ -203,73 +186,110 @@ export function Header({ dict, locale }: HeaderProps) {
               ))}
             </div>
 
-            {/* Account Shortcut */}
+            {/* Mobildə: Axtarış ikon düyməsi (Search - klikləndikdə tam ekran axtarış modalı açır) */}
+            <button
+              type="button"
+              onClick={() => setIsSearchModalOpen(true)}
+              className="flex lg:hidden p-2 text-[#17181C] hover:text-[#D8232A] hover:bg-[#F6F6F8] rounded-full transition-colors cursor-pointer min-w-[40px] min-h-[40px] items-center justify-center"
+              aria-label={t({ az: 'Axtarış', en: 'Search', ru: 'Поиск' })}
+            >
+              <Search className="h-5 w-5" />
+            </button>
+
+            {/* Desktop Kabinet / Hesab düyməsi */}
             <button
               onClick={handleAccountClick}
-              className="p-3 text-[#17181C] hover:text-[#D8232A] hover:bg-[#F6F6F8] rounded-full transition-all duration-200 cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
-              aria-label={dict.navigation.account || "Kabinet"}
+              className="hidden lg:flex p-2.5 text-[#17181C] hover:text-[#D8232A] hover:bg-[#F6F6F8] rounded-full transition-all duration-200 cursor-pointer min-w-[40px] min-h-[40px] items-center justify-center"
+              aria-label={dict.navigation?.account || "Kabinet"}
+              title={dict.navigation?.account || "Kabinet"}
             >
               <User className="h-5 w-5" />
             </button>
 
-            {/* Wishlist Shortcut */}
+            {/* Seçilmişlər ikonu (Heart - link /${locale}/wishlist) */}
             <Link
               href={`/${locale}/wishlist`}
-              className="p-3 text-[#17181C] hover:text-[#D8232A] hover:bg-[#F6F6F8] rounded-full transition-all duration-200 cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
-              aria-label={dict.navigation.wishlist || "Seçilmişlər"}
+              className="p-2 sm:p-2.5 text-[#17181C] hover:text-[#D8232A] hover:bg-[#F6F6F8] rounded-full transition-all duration-200 cursor-pointer min-w-[40px] min-h-[40px] flex items-center justify-center"
+              aria-label={dict.navigation?.wishlist || "Seçilmişlər"}
+              title={dict.navigation?.wishlist || "Seçilmişlər"}
             >
               <Heart className="h-5 w-5" />
             </Link>
 
-            {/* Səbət Shortcut */}
+            {/* Səbət düyməsi (ShoppingBag - sayğac nişanı ilə). Basıldıqda useCartStore-un mini-cart açma funksiyasını tətikləyir. */}
             <button
-              onClick={() => setIsCartOpen(true)}
-              className="relative p-3 text-[#17181C] hover:text-[#D8232A] hover:bg-[#F6F6F8] rounded-full transition-all duration-200 items-center justify-center min-w-[44px] min-h-[44px] cursor-pointer"
-              aria-label={dict.navigation.cart || "Səbət"}
+              type="button"
+              onClick={openCart}
+              className="relative p-2 sm:p-2.5 text-[#17181C] hover:text-[#D8232A] hover:bg-[#F6F6F8] rounded-full transition-all duration-200 flex items-center justify-center min-w-[40px] min-h-[40px] cursor-pointer"
+              aria-label={dict.navigation?.cart || "Səbət"}
+              title={dict.navigation?.cart || "Səbət"}
             >
-              <ShoppingCart className="h-5 w-5" />
+              <ShoppingBag className="h-5 w-5 text-[#17181C]" />
               {mounted && totalItems > 0 && (
-                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-5 h-5 px-1 text-[10px] font-black text-white bg-[#D8232A] border-2 border-[#FFFFFF] rounded-full">
+                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-black text-white bg-[#D8232A] border-2 border-[#FFFFFF] rounded-full">
                   {totalItems}
                 </span>
               )}
             </button>
           </div>
-
         </div>
 
-        {/* MOBILE LAYOUT ARCHITECTURE RULES */}
-        <div className="flex md:hidden items-center justify-between bg-[#FFFFFF] border-b border-[#EDEDED] px-4 py-3 w-full">
-          {/* Left: Brand logo */}
-          <Link href={`/${locale}`} className="flex items-center gap-2 group">
-            <div className="w-7 h-7 rounded-lg bg-[#D8232A] text-white flex items-center justify-center font-black text-xs shadow-sm">
-              <Package className="w-4 h-4" />
+        {/* PİLLƏ 2: Masaüstü Açıq Kateqoriya Zolağı (hidden lg:block h-[42px]) */}
+        <div className="hidden lg:block border-t border-[#EDEDED] bg-[#FFFFFF]">
+          <div className="max-w-7xl mx-auto px-6 h-[42px] flex items-center justify-between gap-2 text-[13px] font-semibold text-[#4B5563]">
+            <div className="flex items-center gap-6 xl:gap-7 overflow-x-auto no-scrollbar">
+              <Link
+                href={`/${locale}/catalog?category=3x3`}
+                className="hover:text-[#D8232A] transition-colors whitespace-nowrap"
+              >
+                {locale === 'en' ? '3×3 Speed Cubes' : locale === 'ru' ? '3×3 Скоростные кубы' : '3×3 Sürətli Kublar'}
+              </Link>
+              <Link
+                href={`/${locale}/catalog?category=big-cubes`}
+                className="hover:text-[#D8232A] transition-colors whitespace-nowrap"
+              >
+                {locale === 'en' ? 'Big Cubes (4×4–7×7)' : locale === 'ru' ? 'Большие кубы (4×4–7×7)' : 'Böyük Kublar (4×4–7×7)'}
+              </Link>
+              <Link
+                href={`/${locale}/catalog?category=pyraminx-skewb`}
+                className="hover:text-[#D8232A] transition-colors whitespace-nowrap"
+              >
+                {locale === 'en' ? 'Pyraminx & Skewb' : locale === 'ru' ? 'Пирамидка & Скьюб' : 'Piramida & Skewb'}
+              </Link>
+              <Link
+                href={`/${locale}/catalog?category=smart-cubes`}
+                className="hover:text-[#D8232A] transition-colors whitespace-nowrap"
+              >
+                {locale === 'en' ? 'Smart Bluetooth' : locale === 'ru' ? 'Smart Bluetooth' : 'Smart Bluetooth'}
+              </Link>
+              <Link
+                href={`/${locale}/catalog?category=lubricants`}
+                className="hover:text-[#D8232A] transition-colors whitespace-nowrap"
+              >
+                {locale === 'en' ? 'Silicone Lubes' : locale === 'ru' ? 'Смазки для куба' : 'Kub Yağları (Lube)'}
+              </Link>
+              <Link
+                href={`/${locale}/catalog?category=timers-mats`}
+                className="hover:text-[#D8232A] transition-colors whitespace-nowrap"
+              >
+                {locale === 'en' ? 'Timers & Mats' : locale === 'ru' ? 'Таймеры & Маты' : 'Taymerlər & Matlar'}
+              </Link>
+              <Link
+                href={`/${locale}/catalog?filter=sale`}
+                className="font-black text-red-600 hover:text-red-700 transition-colors whitespace-nowrap"
+              >
+                {locale === 'en' ? 'Discounts %' : locale === 'ru' ? 'Скидки %' : 'Endirimlər %'}
+              </Link>
             </div>
-            <span className="font-sans font-black text-[#D8232A] text-xl tracking-tight">
-              RubikShop<span className="text-[#17181C] text-xs font-bold ml-0.5">.az</span>
-            </span>
-          </Link>
 
-          {/* Right: Hamburger navigation toggle trigger */}
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="p-2.5 text-[#17181C] hover:text-[#D8232A] hover:bg-[#F6F6F8] rounded-lg transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
-            aria-label={t({ az: 'Menyu', en: 'Menu', ru: 'Меню' })}
-          >
-            <Menu className="h-6 w-6" />
-          </button>
-        </div>
-
-        {/* Conditional Sub-Row Search visibility (Mobile only) */}
-        {showMobileSearch && (
-          <div className="md:hidden px-4 pb-3 pt-1 bg-[#FFFFFF]">
-            <SearchBar
-              locale={locale}
-              placeholder={dict.header?.search_placeholder || "Məhsul axtar..."}
-              showButton={false}
-            />
+            <Link
+              href={`/${locale}/finder`}
+              className="ml-auto font-bold text-xs px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-full transition-all shrink-0 flex items-center gap-1 shadow-xs"
+            >
+              <span>{locale === 'en' ? 'Cube Finder ✨' : locale === 'ru' ? 'Подбор кубика ✨' : 'Kub Seçici ✨'}</span>
+            </Link>
           </div>
-        )}
+        </div>
 
         {/* LEFT-ALIGNED SLIDE-OUT OFF-CANVAS NAVIGATION DRAWER */}
         <AnimatePresence>
@@ -328,12 +348,12 @@ export function Header({ dict, locale }: HeaderProps) {
                       type="button"
                       onClick={() => {
                         setIsMenuOpen(false);
-                        setIsCartOpen(true);
+                        openCart();
                       }}
                       className="relative p-2 bg-[#F6F6F8] hover:bg-[#EDEDED] border border-[#E5E7EB] rounded-full text-[#17181C] transition-colors cursor-pointer w-9 h-9 flex items-center justify-center"
                       aria-label={t({ az: 'Səbət', en: 'Cart', ru: 'Корзина' })}
                     >
-                      <ShoppingCart className="h-4 w-4 text-[#17181C]" />
+                      <ShoppingBag className="h-4 w-4 text-[#17181C]" />
                       {mounted && totalItems > 0 && (
                         <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[9px] font-black text-white bg-[#D8232A] border-2 border-white rounded-full">
                           {totalItems}
@@ -623,12 +643,46 @@ export function Header({ dict, locale }: HeaderProps) {
         </AnimatePresence>
       </header>
 
-      <CartDrawer
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        dict={dict}
-        locale={locale}
-      />
+      {/* Mobildə Tam Ekran Axtarış Modalı */}
+      <AnimatePresence>
+        {isSearchModalOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[99999] bg-white flex flex-col p-4"
+          >
+            <div className="flex items-center justify-between gap-3 pb-3 border-b border-[#EDEDED]">
+              <div className="flex items-center gap-2">
+                <Search className="w-5 h-5 text-[#D8232A]" />
+                <span className="font-bold text-sm text-[#17181C]">
+                  {locale === 'en' ? 'Search Products' : locale === 'ru' ? 'Поиск товаров' : 'Məhsul Axtarışı'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSearchModalOpen(false)}
+                className="p-2 rounded-full bg-[#F6F6F8] hover:bg-[#EDEDED] text-[#17181C] transition-colors cursor-pointer"
+                aria-label="Bağla"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="pt-4 flex-1 overflow-y-auto">
+              <SearchBar
+                locale={locale}
+                placeholder={dict.header?.search_placeholder || "Məhsul axtar..."}
+                autoFocus
+                showButton={true}
+                buttonText={dict.header?.search_button || "Axtar"}
+                onSearchSubmit={() => setIsSearchModalOpen(false)}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </React.Fragment>
   );
 }

@@ -13,17 +13,20 @@ import { sanitizeImageUrl } from '@/lib/image';
 import type { ApplicationDictionary } from '@/types/application.types';
 
 interface CartDrawerProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
   dict: ApplicationDictionary;
   locale: string;
 }
 
-export function CartDrawer({ isOpen, onClose, dict, locale }: CartDrawerProps) {
+export function CartDrawer({ isOpen: externalIsOpen, onClose: externalOnClose, dict, locale }: CartDrawerProps) {
   const [user, setUser] = React.useState<any>(null);
   const { openModal } = useAuthModalStore();
-  const { items, removeItem, updateQuantity, getTotalPrice, getProductSavings } = useCartStore();
+  const { items, removeItem, updateQuantity, getTotalPrice, getProductSavings, isCartOpen, closeCart } = useCartStore();
   const [isMounted, setIsMounted] = React.useState(false);
+
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : isCartOpen;
+  const onClose = externalOnClose || closeCart;
 
   React.useEffect(() => {
     setIsMounted(true);

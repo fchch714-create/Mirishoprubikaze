@@ -20,6 +20,9 @@ interface CartState {
   appliedCoupon: string | null;
   discountType: 'percentage' | 'fixed' | null;
   discountValue: number;
+  isCartOpen: boolean;
+  openCart: () => void;
+  closeCart: () => void;
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
@@ -51,6 +54,9 @@ export const useCartStore = create<CartState>()(
       appliedCoupon: null,
       discountType: null,
       discountValue: 0,
+      isCartOpen: false,
+      openCart: () => set({ isCartOpen: true }),
+      closeCart: () => set({ isCartOpen: false }),
       
       addItem: (newItem: CartItem) => {
         set((state) => {
@@ -165,6 +171,10 @@ export const useCartStore = create<CartState>()(
     {
       name: 'rubikshop-cart-storage',
       storage: createJSONStorage(() => (typeof window !== 'undefined' ? window.localStorage : (dummyStorage as any))),
+      partialize: (state) => {
+        const { isCartOpen, ...rest } = state;
+        return rest;
+      },
     }
   )
 );

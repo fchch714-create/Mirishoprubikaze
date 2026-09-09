@@ -2377,6 +2377,7 @@ export async function createProduct(payload: any) {
       video_url: payload.video_url,
       stock_quantity: safeStock,
       is_featured: payload.is_featured ?? false,
+      is_upsell: payload.is_upsell ?? false,
       product_type: payload.product_type ?? 'speedcube',
       tags: payload.tags ?? [],
       gallery_images: safeGallery,
@@ -2400,12 +2401,20 @@ export async function createProduct(payload: any) {
       .select()
       .single();
 
-    if (prodError && (prodError.message?.includes('category_id') || prodError.message?.includes('add_ons') || prodError.code === 'PGRST204')) {
-      // If schema doesn't have category_id column directly or add_ons, retry safely
+    if (prodError && (prodError.message?.includes('category_id') || prodError.message?.includes('add_ons') || prodError.message?.includes('is_upsell') || prodError.code === 'PGRST204')) {
+      // If schema doesn't have category_id, add_ons, or is_upsell column directly, retry safely
       delete insertObj.add_ons;
+      if (prodError.message?.includes('is_upsell')) {
+        delete insertObj.is_upsell;
+      }
       const res = await supabase.from('products').insert(insertObj).select().single();
       if (res.error && res.error.message?.includes('category_id')) {
         delete insertObj.category_id;
+        const res2 = await supabase.from('products').insert(insertObj).select().single();
+        product = res2.data;
+        prodError = res2.error;
+      } else if (res.error && res.error.message?.includes('is_upsell')) {
+        delete insertObj.is_upsell;
         const res2 = await supabase.from('products').insert(insertObj).select().single();
         product = res2.data;
         prodError = res2.error;
@@ -2512,6 +2521,10 @@ export async function updateProduct(id: string, payload: any) {
       }
     }
 
+    if (payload.is_upsell !== undefined) {
+      directFields.is_upsell = Boolean(payload.is_upsell);
+    }
+
     let { data: product, error: prodError } = await supabase
       .from('products')
       .update(directFields)
@@ -2519,8 +2532,13 @@ export async function updateProduct(id: string, payload: any) {
       .select()
       .single();
 
-    if (prodError && prodError.message?.includes('category_id')) {
-      delete directFields.category_id;
+    if (prodError && (prodError.message?.includes('category_id') || prodError.message?.includes('is_upsell'))) {
+      if (prodError.message?.includes('category_id')) {
+        delete directFields.category_id;
+      }
+      if (prodError.message?.includes('is_upsell')) {
+        delete directFields.is_upsell;
+      }
       const res = await supabase.from('products').update(directFields).eq('id', validId).select().single();
       product = res.data;
       prodError = res.error;

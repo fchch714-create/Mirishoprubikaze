@@ -24,6 +24,7 @@ export function CartDrawer({ isOpen: externalIsOpen, onClose: externalOnClose, d
   const { openModal } = useAuthModalStore();
   const { items, removeItem, updateQuantity, getTotalPrice, getProductSavings, isCartOpen, closeCart } = useCartStore();
   const [isMounted, setIsMounted] = React.useState(false);
+  const [upsellProducts, setUpsellProducts] = React.useState<any[]>([]);
 
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : isCartOpen;
   const onClose = externalOnClose || closeCart;
@@ -39,6 +40,43 @@ export function CartDrawer({ isOpen: externalIsOpen, onClose: externalOnClose, d
       setUser(session?.user || null);
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  React.useEffect(() => {
+    let isCancelled = false;
+    const fetchUpsells = async () => {
+      try {
+        let { data, error } = await supabase
+          .from('products')
+          .select('id, slug, title_az, title_en, title_ru, price_azn, compare_at_price_azn, image_url, stock_quantity, is_active, is_upsell')
+          .eq('is_upsell', true)
+          .eq('is_active', true)
+          .gt('stock_quantity', 0)
+          .limit(3);
+
+        if (error || !data || data.length === 0) {
+          const fallbackRes = await supabase
+            .from('products')
+            .select('id, slug, title_az, title_en, title_ru, price_azn, compare_at_price_azn, image_url, stock_quantity, is_active')
+            .eq('is_active', true)
+            .gt('stock_quantity', 0)
+            .lte('price_azn', 15)
+            .order('price_azn', { ascending: true })
+            .limit(3);
+          data = fallbackRes.data || [];
+        }
+
+        if (!isCancelled && data) {
+          setUpsellProducts(data);
+        }
+      } catch (err) {
+        console.warn('Upsell fetch error in CartDrawer:', err);
+      }
+    };
+    fetchUpsells();
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   const subtotal = isMounted ? getTotalPrice() : 0;
@@ -217,6 +255,94 @@ export function CartDrawer({ isOpen: externalIsOpen, onClose: externalOnClose, d
                         </div>
                       </div>
                     ))}
+
+                    {/* In-Cart Upsell Impulse Shelf */}
+                    {upsellProducts.length > 0 && (
+                      <div className="pt-4 mt-2 border-t border-border">
+                        <div className="flex items-center gap-1.5 mb-2.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                          <h4 className="text-xs font-black text-foreground">
+                            {locale === 'en' ? 'Add to Your Cart' : locale === 'ru' ? 'Добавьте к заказу' : 'Səbətinizə Əlavə Edin'}
+                          </h4>
+                        </div>
+                        <div className="space-y-2">
+                          {upsellProducts.map((p) => {
+                            const isAlreadyInCart = items.some(
+                              (i) => i.id === p.id || (p.slug && i.id.includes(p.slug))
+                            );
+                            const title =
+                              (locale === 'ru' ? p.title_ru : locale === 'en' ? p.title_en : p.title_az) ||
+                              p.title_az ||
+                              'Aksesuar';
+                            const price = Number(p.price_azn || 0);
+                            const comparePrice = p.compare_at_price_azn ? Number(p.compare_at_price_azn) : null;
+                            const img = sanitizeImageUrl(p.image_url, p.id);
+
+                            return (
+                              <div
+                                key={p.id}
+                                className="flex items-center justify-between p-2 rounded-xl bg-muted/40 border border-border/80 hover:border-border transition-colors gap-2"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-background border border-border shrink-0 flex items-center justify-center">
+                                    <Image
+                                      src={img}
+                                      alt={title}
+                                      fill
+                                      sizes="40px"
+                                      className="object-contain p-0.5"
+                                    />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="block text-xs font-bold text-foreground line-clamp-1 leading-snug">
+                                      {title}
+                                    </span>
+                                    <div className="flex items-baseline gap-1.5">
+                                      <span className="text-xs font-black text-foreground font-mono">
+                                        {price.toFixed(2)} AZN
+                                      </span>
+                                      {comparePrice && comparePrice > price && (
+                                        <span className="text-[10px] text-muted-foreground line-through font-mono">
+                                          {comparePrice.toFixed(2)} AZN
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="shrink-0">
+                                  {isAlreadyInCart ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                                      <Check className="w-3 h-3 stroke-[2.5]" />
+                                      <span>{locale === 'en' ? 'Added' : locale === 'ru' ? 'Добавлено' : 'Əlavə edildi'}</span>
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        useCartStore.getState().addItem({
+                                          id: p.id,
+                                          title: title,
+                                          price_azn: price,
+                                          original_price_azn: comparePrice || undefined,
+                                          quantity: 1,
+                                          image_url: p.image_url || '',
+                                          is_preorder: false,
+                                        });
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black text-rubik-brand bg-rubik-brand/10 hover:bg-rubik-brand hover:text-white rounded-lg transition-colors cursor-pointer active:scale-95"
+                                    >
+                                      <Plus className="w-3 h-3 stroke-[2.5]" />
+                                      <span>{locale === 'en' ? 'Add' : locale === 'ru' ? 'Добавить' : '+ Əlavə et'}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

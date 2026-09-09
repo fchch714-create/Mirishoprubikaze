@@ -537,21 +537,21 @@ export function HomepageContent({
                   <Link
                     key={cat.id}
                     href={`/${locale}/catalog?category=${slug}`}
-                    className="snap-start shrink-0 flex items-center gap-2 px-3.5 py-1.5 bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-[#E5E7EB] rounded-full shadow-2xs transition-all active:scale-95"
+                    className="snap-start shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-[#F9FAFB] hover:bg-[#F3F4F6] hover:border-[#D8232A]/30 border border-[#E5E7EB] rounded-full shadow-2xs transition-all active:scale-95"
                   >
                     {cat.image_url ? (
-                      <div className="relative w-6 h-6 rounded-full overflow-hidden shrink-0 bg-white border border-[#EDEDED]">
+                      <div className="relative w-5 h-5 rounded-full overflow-hidden shrink-0 bg-white border border-[#EDEDED]">
                         <Image
                           src={sanitizeImageUrl(cat.image_url, cat.id)}
                           alt={title}
                           fill
-                          sizes="24px"
+                          sizes="20px"
                           className="object-cover"
                         />
                       </div>
                     ) : (
-                      <div className="w-6 h-6 rounded-full bg-red-100 text-[#D8232A] flex items-center justify-center text-[10px] font-black shrink-0">
-                        {title.charAt(0)}
+                      <div className="w-5 h-5 rounded-full bg-red-50 text-[#D8232A] flex items-center justify-center shrink-0">
+                        <Layers className="w-3 h-3 stroke-[2.5]" />
                       </div>
                     )}
                     <span className="text-xs font-bold text-[#17181C] whitespace-nowrap">{title}</span>
@@ -573,18 +573,20 @@ export function HomepageContent({
                     <Link
                       key={cat.id}
                       href={`/${locale}/catalog?category=${slug}`}
-                      className="group flex items-center gap-2 px-3 py-1 bg-[#F9FAFB] hover:bg-[#F3F4F6] hover:border-[#D8232A]/30 border border-[#E5E7EB] rounded-lg transition-all text-xs font-bold text-[#374151] hover:text-[#D8232A]"
+                      className="group flex items-center gap-1.5 px-3 py-1 bg-[#F9FAFB] hover:bg-[#F3F4F6] hover:border-[#D8232A]/30 border border-[#E5E7EB] rounded-full transition-all text-xs font-bold text-[#374151] hover:text-[#D8232A]"
                     >
-                      {cat.image_url && (
-                        <div className="relative w-5 h-5 rounded-md overflow-hidden shrink-0 bg-white">
+                      {cat.image_url ? (
+                        <div className="relative w-4 h-4 rounded-full overflow-hidden shrink-0 bg-white">
                           <Image
                             src={sanitizeImageUrl(cat.image_url, cat.id)}
                             alt={title}
                             fill
-                            sizes="20px"
+                            sizes="16px"
                             className="object-cover group-hover:scale-110 transition-transform"
                           />
                         </div>
+                      ) : (
+                        <Layers className="w-3.5 h-3.5 text-[#D8232A] shrink-0" />
                       )}
                       <span className="whitespace-nowrap">{title}</span>
                     </Link>

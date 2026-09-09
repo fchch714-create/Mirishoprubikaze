@@ -81,6 +81,7 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
   const [videoUrl, setVideoUrl] = useState('');
   const [stock_quantity, setStock_quantity] = useState<number>(0);
   const [isFeatured, setIsFeatured] = useState(false);
+  const [isUpsell, setIsUpsell] = useState(false);
   const [allowPreorder, setAllowPreorder] = useState(true);
   const [preorderLeadTime, setPreorderLeadTime] = useState('14-28 iş günü');
   const [tags, setTags] = useState('gan, flagship, maglev');
@@ -394,6 +395,7 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
             const rawStock = prod.stock_quantity ?? prod.stock ?? 0;
             setStock_quantity(Number(rawStock) || 0);
             setIsFeatured(prod.is_featured || false);
+            setIsUpsell(prod.is_upsell || false);
             setSelectedBrandId(prod.brand_id || '');
             setProductType(prod.product_type || 'standard');
             setTags(Array.isArray(prod.tags) ? prod.tags.join(', ') : (prod.tags || ''));
@@ -551,6 +553,7 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
         category_ids: selectedCategoryId ? [selectedCategoryId] : [],
         brand_id: selectedBrandId || undefined,
         is_featured: isFeatured,
+        is_upsell: isUpsell,
         product_type: productType,
         tags: tagsArray,
         gallery_images: galleryImages.map(img => img.trim()).filter(Boolean),
@@ -2089,6 +2092,20 @@ export default function ProductFormClient({ isNew, productId }: ProductFormClien
               </div>
               <div className={`w-10 h-6 rounded-full p-1 transition-colors ${isFeatured ? 'bg-amber-500' : 'bg-slate-700'}`}>
                 <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isFeatured ? 'translate-x-4' : 'translate-x-0'}`} />
+              </div>
+            </label>
+
+            {/* In-Cart Upsell Impulse Toggle */}
+            <label 
+              onClick={() => setIsUpsell(!isUpsell)}
+              className="flex items-center justify-between cursor-pointer p-3 bg-slate-950 border border-slate-800 rounded-xl hover:border-slate-700 transition-colors"
+            >
+              <div>
+                <div className="text-sm font-bold text-white">Səbət İmpulsu (Upsell)</div>
+                <div className="text-[10px] text-slate-500">Səbət çəkməcəsində təklif et</div>
+              </div>
+              <div className={`w-10 h-6 rounded-full p-1 transition-colors ${isUpsell ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isUpsell ? 'translate-x-4' : 'translate-x-0'}`} />
               </div>
             </label>
 

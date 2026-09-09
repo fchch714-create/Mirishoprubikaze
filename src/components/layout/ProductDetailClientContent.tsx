@@ -1491,65 +1491,76 @@ function ProductDetailClientContentInner({
               )}
             </div>
 
-            {/* 5. Vertical Variant Card Selector Component - Only displayed if product has 2 or more versions */}
+            {/* 5. 2-Column Modern Grid Variant Card Selector - Only displayed if product has 2 or more versions */}
             {dbVariants.length > 1 && (
               <div className="my-4 space-y-2">
-                <div className="text-xs md:text-sm font-bold text-foreground flex items-center gap-1.5">
-                  <span className="text-muted-foreground font-semibold">
-                    {locale === 'en' ? 'Version:' : locale === 'ru' ? 'Версия:' : 'Versiya:'}
-                  </span>
-                  <span className="font-extrabold text-primary">
-                    {selectedVariant?.name || selectedVariant?.title_az || selectedVariant?.sku || product.title}
+                <div className="text-xs md:text-sm font-bold text-foreground flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground font-semibold">
+                      {locale === 'en' ? 'Version:' : locale === 'ru' ? 'Версия:' : 'Versiya:'}
+                    </span>
+                    <span className="font-extrabold text-[#D8232A]">
+                      {selectedVariant?.name || selectedVariant?.title_az || selectedVariant?.sku || product.title}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    {dbVariants.length} {locale === 'en' ? 'versions' : locale === 'ru' ? 'версий' : 'versiya'}
                   </span>
                 </div>
-                <div className={`flex flex-col gap-2.5 ${dbVariants.length >= 6 ? 'max-h-[380px] overflow-y-auto pr-1' : ''}`}>
+
+                <div className="grid grid-cols-2 gap-2.5">
                   {dbVariants.map((v: any) => {
                     const isSelected = String(selectedVariant?.id) === String(v.id);
                     const vPrice = Number(v.price_azn ?? v.price ?? basePrice);
                     const vComparePrice = v.compare_at_price_azn ? Number(v.compare_at_price_azn) : null;
                     const vTitle = v.name || v.title_az || v.sku || 'Versiya';
-                    const vImg = sanitizeImageUrl(v.image_url || product?.image_url, String(v.id));
+                    const vStock = Number(v.stock_quantity ?? v.stock ?? 0);
+                    const vIsPreorder = Boolean(v.allow_preorder ?? product?.allow_preorder) && vStock === 0;
 
                     return (
                       <button
                         key={v.id}
                         type="button"
                         onClick={() => handleVariantSelect(v)}
-                        className={`w-full min-h-[52px] p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        className={`relative p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
                           isSelected
-                            ? 'border-2 border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20'
-                            : 'border-border bg-card hover:border-primary/50 hover:bg-accent/50'
+                            ? 'border-2 border-[#D8232A] bg-red-50/10 shadow-xs ring-1 ring-[#D8232A]/20'
+                            : 'border-border bg-card hover:border-[#D8232A]/40 hover:bg-accent/40'
                         }`}
                       >
-                        {/* LEFT: Variant Thumbnail Image + Bold Variant Name */}
-                        <div className="flex items-center gap-3 min-w-0">
-                          <img
-                            src={vImg}
-                            alt={vTitle}
-                            className="w-16 h-16 object-cover rounded-lg border border-border shrink-0 bg-background"
-                          />
-                          <span className="font-bold text-sm text-foreground line-clamp-2 leading-snug">
+                        {/* Top: Title and Selection Indicator */}
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="font-bold text-xs md:text-sm text-foreground line-clamp-2 leading-tight">
                             {vTitle}
                           </span>
+                          {isSelected && (
+                            <div className="w-4 h-4 rounded-full bg-[#D8232A] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </div>
+                          )}
                         </div>
 
-                        {/* RIGHT: Formatted Price + Strikethrough old price if discounted + Checkmark icon */}
-                        <div className="flex items-center gap-2.5 shrink-0">
-                          <div className="text-right">
-                            <div className="font-extrabold text-sm text-foreground whitespace-nowrap">
+                        {/* Bottom: Price + Stock Badge */}
+                        <div className="pt-1 flex flex-col gap-0.5">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-extrabold text-xs md:text-sm text-foreground font-mono">
                               {formatPrice(vPrice)}
-                            </div>
+                            </span>
                             {vComparePrice && vComparePrice > vPrice && (
-                              <div className="text-xs text-muted-foreground line-through whitespace-nowrap">
+                              <span className="text-[10px] text-muted-foreground line-through font-mono">
                                 {formatPrice(vComparePrice)}
-                              </div>
+                              </span>
                             )}
                           </div>
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                            isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted/40 text-transparent'
+                          <span className={`text-[10px] font-semibold ${
+                            vIsPreorder ? 'text-amber-600 dark:text-amber-400' : vStock > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'
                           }`}>
-                            <Check className="w-3.5 h-3.5 font-bold stroke-[3]" />
-                          </div>
+                            {vIsPreorder 
+                              ? (locale === 'en' ? 'Pre-order' : locale === 'ru' ? 'Предзаказ' : 'Ön sifariş')
+                              : vStock > 0 
+                              ? (locale === 'en' ? 'In Stock' : locale === 'ru' ? 'В наличии' : 'Stokda var') 
+                              : (locale === 'en' ? 'Out of stock' : locale === 'ru' ? 'Нет в наличии' : 'Bitib')}
+                          </span>
                         </div>
                       </button>
                     );
@@ -1558,24 +1569,62 @@ function ProductDetailClientContentInner({
               </div>
             )}
 
-            {/* 6. Stock Status Indicator */}
-            <div className="flex items-center gap-2.5 my-3 p-3.5 bg-muted/20 border border-border/60 rounded-xl">
-              <span className={`w-3 h-3 rounded-full shrink-0 ${
-                isPreorder ? 'bg-amber-500 animate-pulse' : isTrulyOutOfStock ? 'bg-red-500' : 'bg-emerald-500'
-              }`} />
-              <span className={`text-xs md:text-sm font-bold ${
-                isPreorder ? 'text-amber-600 dark:text-amber-400' : isTrulyOutOfStock ? 'text-red-600' : 'text-emerald-600'
-              }`}>
-                {isPreorder
-                  ? (locale === 'en'
-                      ? `On Pre-order (${(product?.preorder_lead_time || '14-28 business days').replace(/14-28 iş günü/g, '14-28 business days').replace(/iş günü/g, 'business days').replace(/gün/g, 'days')})`
-                      : locale === 'ru'
-                      ? `На предзаказе (${(product?.preorder_lead_time || '14-28 рабочих дней').replace(/14-28 iş günü/g, '14-28 рабочих дней').replace(/iş günü/g, 'рабочих дней').replace(/gün/g, 'дней')})`
-                      : `Öncədən Sifarişdədir (${product?.preorder_lead_time || '14-28 iş günü'})`)
-                  : isTrulyOutOfStock
-                  ? (locale === 'en' ? 'Out of Stock' : locale === 'ru' ? 'Нет в наличии' : 'Bitib (Müvəqqəti yoxdur)')
-                  : (locale === 'en' ? `In Stock (${effectiveStock} pcs)` : locale === 'ru' ? `В наличии (${effectiveStock} шт.)` : `Stokda var (${effectiveStock} ədəd)`)}
-              </span>
+            {/* 6. Delivery Promise & Stock At-A-Glance Trust Box */}
+            <div className="my-3 space-y-2">
+              {/* Delivery Promise Box */}
+              {isPreorder ? (
+                <div className="flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-900 dark:text-amber-300">
+                  <Clock className="w-5 h-5 text-amber-500 shrink-0" />
+                  <div className="text-xs font-bold leading-snug">
+                    <span className="font-extrabold block text-amber-700 dark:text-amber-400">
+                      {locale === 'en' ? 'Pre-order:' : locale === 'ru' ? 'Предзаказ:' : 'Ön Sifariş:'}
+                    </span>
+                    <span>
+                      {locale === 'en'
+                        ? 'Overseas delivery in 14-28 business days (100% advance payment).'
+                        : locale === 'ru'
+                        ? 'Доставка из-за границы 14-28 рабочих дней (100% предоплата).'
+                        : 'Xaricdən çatdırılma 14-28 iş günü (100% ön ödəniş).'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-900 dark:text-emerald-300">
+                  <Truck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <div className="text-xs font-bold leading-snug">
+                    <span className="font-extrabold block text-emerald-700 dark:text-emerald-400">
+                      {locale === 'en' ? 'Fast Delivery:' : locale === 'ru' ? 'Быстрая Доставка:' : 'Sürətli Çatdırılma:'}
+                    </span>
+                    <span>
+                      {locale === 'en'
+                        ? 'Within 24 hours in Baku, 1-3 business days across regions.'
+                        : locale === 'ru'
+                        ? 'В течение 24 часов по Баку, 1-3 рабочих дня по регионам.'
+                        : 'Bakı daxili 24 saat ərzində, Rayonlara 1-3 iş günü.'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Stock Status Indicator Pill */}
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border border-border/60 rounded-lg">
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                  isPreorder ? 'bg-amber-500 animate-pulse' : isTrulyOutOfStock ? 'bg-red-500' : 'bg-emerald-500'
+                }`} />
+                <span className={`text-xs font-bold ${
+                  isPreorder ? 'text-amber-600 dark:text-amber-400' : isTrulyOutOfStock ? 'text-red-600' : 'text-emerald-600'
+                }`}>
+                  {isPreorder
+                    ? (locale === 'en'
+                        ? `On Pre-order (${product?.preorder_lead_time || '14-28 business days'})`
+                        : locale === 'ru'
+                        ? `На предзаказе (${product?.preorder_lead_time || '14-28 рабочих дней'})`
+                        : `Öncədən Sifarişdədir (${product?.preorder_lead_time || '14-28 iş günü'})`)
+                    : isTrulyOutOfStock
+                    ? (locale === 'en' ? 'Out of Stock' : locale === 'ru' ? 'Нет в наличии' : 'Bitib (Müvəqqəti yoxdur)')
+                    : (locale === 'en' ? `In Stock (${effectiveStock} pcs)` : locale === 'ru' ? `В наличии (${effectiveStock} шт.)` : `Stokda var (${effectiveStock} ədəd)`)}
+                </span>
+              </div>
             </div>
 
             {/* Pre-Order Special Warning Box */}

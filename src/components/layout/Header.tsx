@@ -295,7 +295,7 @@ export function Header({ dict, locale }: HeaderProps) {
         <AnimatePresence>
           {isMenuOpen && (
             <>
-              {/* Backdrop Overlay (Solid dark backdrop preventing background text bleed-through) */}
+              {/* Backdrop Overlay (Balanced blur overlay allowing user to tap outside and dismiss) */}
               <motion.div
                 key="left-drawer-backdrop"
                 initial={{ opacity: 0 }}
@@ -303,18 +303,18 @@ export function Header({ dict, locale }: HeaderProps) {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
                 onClick={() => setIsMenuOpen(false)}
-                className="fixed top-0 left-0 inset-0 w-screen h-dvh bg-black/95 backdrop-blur-md z-[99998]"
+                className="fixed top-0 left-0 inset-0 w-screen h-dvh bg-black/60 backdrop-blur-sm z-[99998] cursor-pointer"
                 aria-hidden="true"
               />
 
-              {/* Left Side Drawer Container */}
+              {/* Left Side Drawer Container (Balanced w-[300px] max-w-[85vw]) */}
               <motion.div
                 key="left-drawer-container"
                 initial={{ opacity: 0, x: '-100%' }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: '-100%' }}
                 transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                className="fixed top-0 left-0 inset-y-0 h-dvh w-[380px] max-w-[88vw] sm:w-[380px] bg-[#FFFFFF] z-[99999] flex flex-col overflow-hidden text-[#17181C] shadow-2xl border-r border-[#EDEDED]"
+                className="fixed top-0 left-0 inset-y-0 h-dvh w-[300px] max-w-[85vw] bg-[#FFFFFF] z-[99999] flex flex-col overflow-hidden text-[#17181C] shadow-2xl border-r border-[#EDEDED]"
               >
                 {/* 1. Header Block (Sticky Top) with Search, Cart & Close icons */}
                 <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md px-4 py-3 border-b border-[#EDEDED] flex items-center justify-between shrink-0 gap-2">
